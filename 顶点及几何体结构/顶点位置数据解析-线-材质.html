@@ -49,7 +49,10 @@
     var material = new THREE.LineBasicMaterial({
       color: 0xff0000 //线条颜色
     });//材质对象
-    var line = new THREE.Line(geometry, material);//线条模型对象
+    //线渲染模式
+    // var line = new THREE.Line(geometry, material);//线条模型对象
+    //闭环线渲染模式
+    var line = new THREE.LineLoop(geometry, material);
     scene.add(line);//线条对象添加到场景中
     /**
      * 4、光源设置
