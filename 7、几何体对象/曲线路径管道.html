@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>曲线路径管道</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            /* 隐藏body窗口区域滚动条 */
+        }
+    </style>
+    <!--引入three.js三维引擎-->
+    <script src="http://www.yanhuangxueyuan.com/versions/threejsR92/build/three.js"></script>
+    <script src="http://www.yanhuangxueyuan.com/versions/threejsR92/examples/js/controls/OrbitControls.js"></script>
+</head>
+
+<body>
+    <script>
+        /**
+         * 1、创建场景对象Scene
+         */
+        var scene = new THREE.Scene();
+        /**
+         *2、创建网格模型
+         */
+        //方式1
+        //创建管道成型的路径(3D样条曲线)
+        // var path = new THREE.CatmullRomCurve3([
+        //     new THREE.Vector3(-10, -50, -50),
+        //     new THREE.Vector3(10, 0, 0),
+        //     new THREE.Vector3(8, 50, 50),
+        //     new THREE.Vector3(-5, 0, 100)
+        // ]);
+        // // path:路径   40：沿着轨迹细分数  2：管道半径   25：管道截面圆细分数
+        // var geometry = new THREE.TubeGeometry(path, 40, 2, 25);
+        // 方式2
+        // 创建多段线条的顶点数据
+        var p1 = new THREE.Vector3(-85.35, -35.36)
+        var p2 = new THREE.Vector3(-50, 0, 0);
+        var p3 = new THREE.Vector3(0, 50, 0);
+        var p4 = new THREE.Vector3(50, 0, 0);
+        var p5 = new THREE.Vector3(85.35, -35.36);
+        // 创建线条一：直线
+        let line1 = new THREE.LineCurve3(p1, p2);
+        // 重建线条2：三维样条曲线
+        var curve = new THREE.CatmullRomCurve3([p2, p3, p4]);
+        // 创建线条3：直线
+        let line2 = new THREE.LineCurve3(p4, p5);
+        var CurvePath = new THREE.CurvePath();// 创建CurvePath对象
+        CurvePath.curves.push(line1, curve, line2);// 插入多段线条
+        //通过多段曲线路径创建生成管道
+        //通过多段曲线路径创建生成管道，CCurvePath：管道路径
+        var geometry = new THREE.TubeGeometry(CurvePath, 100, 5, 25, false);
+        /*
+        *3、材质对象Material
+        */
+        var material = new THREE.MeshLambertMaterial({
+            color: "red",
+        }); //材质对象Material
+        /**
+        *4、网格模型对象Mesh
+        */
+        var mesh = new THREE.Mesh(geometry, material);
+        //网格模型对象Mesh
+        scene.add(mesh); //网格模型添加到场景中
+
+        // geometry.scale(1.5,1.5,1.5);//几何体缩放
+        /**
+         * 5、光源设置
+         */
+        //点光源
+        var point = new THREE.PointLight("ffffff");
+        point.position.set(300, 400, 300); //点光源位置
+        scene.add(point); //点光源添加到场景中
+        // 6、环境光
+        var ambient = new THREE.AmbientLight(0x444444);
+        scene.add(ambient);
+        /**
+         * 7、相机设置
+         */
+        var width = window.innerWidth; //窗口宽度
+        var height = window.innerHeight; //窗口高度
+        var k = width / height; //窗口宽高比
+        var s = 200; //三维场景显示范围控制系数，系数越大，显示的范围越大
+        //创建相机对象
+        var camera = new THREE.OrthographicCamera(-s * k, s * k, s, -s, 1, 1000);
+        camera.position.set(200, 300, 200); //设置相机位置
+        camera.lookAt(scene.position); //设置相机方向(指向的场景对象)
+        /**
+         * 8、创建渲染器对象
+         */
+        var renderer = new THREE.WebGLRenderer();
+        renderer.setSize(width, height); //设置渲染区域尺寸
+        renderer.setClearColor(0xb9d3ff, 1); //设置背景颜色
+        document.body.appendChild(renderer.domElement); //body元素中插入canvas对象
+        // 9、创建控件对象
+        new THREE.OrbitControls(camera, renderer.domElement); //创建控件对象
+        // 10、渲染
+        function render() {
+            renderer.render(scene, camera); //执行渲染操作
+            requestAnimationFrame(render);
+        }
+        render();
+
+    //   controls.addEventListener("change", render); //监听鼠标、键盘事件
+    </script>
+</body>
+
+</html>
