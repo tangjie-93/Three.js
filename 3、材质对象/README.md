@@ -59,3 +59,14 @@ var material = new THREE.MeshPhongMaterial({
 ```
 ## 2、材质和模型对象对应关系
 <embed src="http://www.yanhuangxueyuan.com/upload/threejs25%E6%9D%90%E8%B4%A8%E5%92%8C%E6%A8%A1%E5%9E%8B%E5%AF%B9%E5%BA%94%E5%85%B3%E7%B3%BB.svg">
+
+## 3、材质基本属性介绍
+```js
+    var material = new THREE.MeshBasicMaterial({
+      // 使用顶点颜色数据渲染模型，不需要再定义color属性
+      // color: 0xff0000,
+      side:THREE.DoubleSide, //双面可见
+      vertexColors: THREE.VertexColors, //以顶点颜色为准
+    });
+```
+`color`和`vertexColors` 只能2选其一

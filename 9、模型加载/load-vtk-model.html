@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>vtk模型的加载</title>
+</head>
+
+<body>
+
+</body>
+
+</html>
+<script type="module">
+    console.log(111)
+    import * as THREE from '../js/three.js';
+    import Stats from '../js/libs/stats.module.js';
+
+    import { TrackballControls } from '../js/TrackballControls.js';
+    import { VTKLoader } from '../js/loaders/VTKLoader.js';
+
+    let container, stats;
+
+    let camera, controls, scene, renderer;
+
+    init();
+    animate();
+
+    function init() {
+        // 初始话相机
+        camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 1e10);
+        // 设置相机位置
+        camera.position.z = 0.2;
+
+        scene = new THREE.Scene();
+
+        scene.add(camera);
+
+        // light 设置光源
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 1);
+        scene.add(hemiLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        // 设置光源位置
+        dirLight.position.set(2, 2, 2);
+        // 将光源添加到相机中
+        scene.add(dirLight);
+
+        const loader = new VTKLoader();
+        loader.load("../models/vtk/bunny.vtk", function (geometry) {
+            // 使模型居中 根据边界矩形使模型居中
+            geometry.center();
+            // 计算法向量 通过面片法向量的平均值计算每个顶点的法向量  
+            // geometry必须要有法向量，光照射上去才能反射
+            geometry.computeVertexNormals();// 不执行时，模型的光源太强，智能看到轮廓
+
+            const material = new THREE.MeshLambertMaterial({ color: 0xffffff });
+            const mesh = new THREE.Mesh(geometry, material);
+            // mesh.position.set(- 0.075, 0.005, 0);
+            mesh.scale.multiplyScalar(0.4);
+            scene.add(mesh);
+
+        });
+
+        // const loader1 = new VTKLoader();
+        // loader1.load('../models/vtk/cube_ascii.vtp', function (geometry) {
+
+        //     geometry.computeVertexNormals();
+        //     geometry.center();
+
+        //     const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+        //     const mesh = new THREE.Mesh(geometry, material);
+
+        //     mesh.position.set(- 0.025, 0, 0);
+        //     mesh.scale.multiplyScalar(0.01);
+
+
+        //     scene.add(mesh);
+
+        // });
+
+        // const loader2 = new VTKLoader();
+        // loader2.load('../models/vtk/cube_binary.vtp', function (geometry) {
+
+        //     geometry.computeVertexNormals();
+        //     geometry.center();
+
+        //     const material = new THREE.MeshLambertMaterial({ color: 0x0000ff });
+        //     const mesh = new THREE.Mesh(geometry, material);
+
+        //     mesh.position.set(0.025, 0, 0);
+        //     mesh.scale.multiplyScalar(0.01);
+
+
+        //     scene.add(mesh);
+
+        // });
+
+        // const loader3 = new VTKLoader();
+        // loader3.load('../models/vtk/cube_no_compression.vtp', function (geometry) {
+
+        //     geometry.computeVertexNormals();
+        //     geometry.center();
+
+        //     const material = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+        //     const mesh = new THREE.Mesh(geometry, material);
+
+        //     mesh.position.set(0.075, 0, 0);
+        //     mesh.scale.multiplyScalar(0.02);
+
+
+        //     scene.add(mesh);
+
+        // });
+
+        // renderer
+
+        renderer = new THREE.WebGLRenderer({antialias:true});
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        container = document.createElement('div');
+        document.body.appendChild(container);
+        container.appendChild(renderer.domElement);
+
+        // controls
+
+        controls = new TrackballControls(camera, renderer.domElement);
+        controls.minDistance = .1;
+        controls.maxDistance = 0.5;
+        controls.rotateSpeed = 5.0;
+
+        stats = new Stats();
+        container.appendChild(stats.dom);
+
+        //
+
+        window.addEventListener('resize', onWindowResize);
+
+    }
+
+    function onWindowResize() {
+
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        controls.handleResize();
+
+    }
+
+    function animate() {
+
+        requestAnimationFrame(animate);
+
+        controls.update();
+
+        renderer.render(scene, camera);
+
+        stats.update();
+
+    }
+</script>

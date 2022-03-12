@@ -35,10 +35,12 @@ mesh.position.y = 80;
 //设置模型xyz坐标
 mesh.position.set(80,2,10);
 ```
-## 4、旋转
+## 3、旋转
 执行旋转`.rotateX()`等方法和执行平移`.translateY()`等方法一样都是对模型状态属性的改变，区别在于执行平移方法改变的是模型的位置属性 **`.position`**，执行模型的旋转方法改变的是表示模型角度状态的角度属性 **`.rotation`** 或者四元数属性 **`.quaternion`** 。
 ```js
 mesh.rotateX(Math.PI/4);//绕x轴旋转π/4
 var axis = new THREE.Vector3(0,1,0);//向量axis
 mesh.rotateOnAxis(axis,Math.PI/8);//绕axis轴旋转π/8
 ```
+
+
