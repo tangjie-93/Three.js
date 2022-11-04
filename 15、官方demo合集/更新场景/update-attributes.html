@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js webgl - custom attributes</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link type="text/css" rel="stylesheet" href="../../css/main.css">
+	</head>
+
+	<body>
+		<div id="info"> custom attributes example</div>
+		<div id="container"></div>
+
+		<!-- Import maps polyfill -->
+		<!-- Remove this when import maps will be widely supported -->
+		<script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "../../js/three.js"
+				}
+			}
+		</script>
+
+		<script type="module">
+
+			import * as THREE from 'three';
+
+			import Stats from '../../js/libs/stats.module.js';
+
+			import {vertexShader,fragmentShader} from "./shader.js"
+
+			let renderer, scene, camera, stats;
+
+			let sphere, uniforms;
+
+			let displacement, noise;
+
+			init();
+			animate();
+
+			function init() {
+                // 透视投影
+				camera = new THREE.PerspectiveCamera( 30, window.innerWidth / window.innerHeight, 1, 10000 );
+				camera.position.z = 300;
+
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color( 0x050505 );
+
+				uniforms = {
+
+					'amplitude': { value: 1.0 },
+					'color': { value: new THREE.Color( 0xff2200 ) },
+					'colorTexture': { value: new THREE.TextureLoader().load( '../textures/water.jpg' ) }
+
+				};
+                // 平铺方式
+				uniforms[ 'colorTexture' ].value.wrapS = uniforms[ 'colorTexture' ].value.wrapT = THREE.RepeatWrapping;
+
+				const shaderMaterial = new THREE.ShaderMaterial( {
+
+					uniforms: uniforms,
+					vertexShader,
+					fragmentShader
+
+				} );
+
+
+				const radius = 50, segments = 128, rings = 64;
+                // 构建球体
+				const geometry = new THREE.SphereGeometry( radius, segments, rings );
+                // 顶点个数
+				displacement = new Float32Array( geometry.attributes.position.count );
+				noise = new Float32Array( geometry.attributes.position.count );
+
+				for ( let i = 0; i < displacement.length; i ++ ) {
+
+					noise[ i ] = Math.random() * 5;
+
+				}
+                // 自定义属性
+				geometry.setAttribute( 'displacement', new THREE.BufferAttribute( displacement, 1 ) );
+
+				sphere = new THREE.Mesh( geometry, shaderMaterial );
+				scene.add( sphere );
+
+				renderer = new THREE.WebGLRenderer();
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+				const container = document.getElementById( 'container' );
+				container.appendChild( renderer.domElement );
+
+				stats = new Stats();
+				container.appendChild( stats.dom );
+
+				//
+
+				window.addEventListener( 'resize', onWindowResize );
+
+			}
+
+			function onWindowResize() {
+				// 更新投影矩阵
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+
+				render();
+				stats.update();
+
+			}
+
+			function render() {
+
+				const time = Date.now() * 0.01;
+                // 绕y轴和z轴旋转
+				sphere.rotation.y =  0.01 * time;
+                // 根据绕y轴旋转的角度的正弦值改变振幅大小
+				uniforms[ 'amplitude' ].value = 2.5 * Math.sin( sphere.rotation.y * 0.125 );
+                //将给定的 h, s, 和 l值加到当前颜色值 改变颜色值
+				uniforms[ 'color' ].value.offsetHSL( 0.0005, 0, 0 );
+
+				for ( let i = 0; i < displacement.length; i ++ ) {
+
+					displacement[ i ] = Math.sin( 0.1 * i + time );
+
+					noise[ i ] += 0.5 * ( 0.5 - Math.random() );
+                    // 限制数值noise[ i ]处于最小值-5和最大值5之间。
+					noise[ i ] = THREE.MathUtils.clamp( noise[ i ], - 5, 5 );
+
+					displacement[ i ] += noise[ i ];
+
+				}
+                //
+				sphere.geometry.attributes.displacement.needsUpdate = true;
+
+				renderer.render( scene, camera );
+
+			}
+
+
+		</script>
+
+</body>
+
+</html>

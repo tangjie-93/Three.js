@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>立方体上方文字</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            /* let our container decide our size */
+            height: 100%;
+            display: block;
+        }
+
+        #container {
+            position: relative;
+            /* makes this the origin of its children */
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        #labels {
+            position: absolute;
+            /* let us position ourself inside the container */
+            left: 0;
+            /* make our position the top left of the container */
+            top: 0;
+            color: white;
+            z-index:0;
+        }
+
+        #labels>div {
+            position: absolute;
+            /* let us position them inside the container */
+            left: 0;
+            /* make their default position the top left of the container */
+            top: 0;
+            cursor: pointer;
+            /* change the cursor to a hand when over us */
+            font-size: large;
+            user-select: none;
+            /* 解决抖动问题 */
+            transition: all 0.08s;
+            white-space: nowrap;
+            /* don't let the text get selected */
+            text-shadow:
+                /* create a black outline */
+                -1px -1px 0 #000,
+                0 -1px 0 #000,
+                1px -1px 0 #000,
+                1px 0 0 #000,
+                1px 1px 0 #000,
+                0 1px 0 #000,
+                -1px 1px 0 #000,
+                -1px 0 0 #000;
+        }
+
+        #labels>div:hover {
+            color: red;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <canvas id="c"></canvas>
+        <div id="labels"></div>
+    </div>
+</body>
+
+</html>
+<script type="importmap">
+{
+	"imports": {
+		"three": "https://threejs.org/build/three.module.js",
+		"three/addons/": "https://threejs.org/examples/jsm/"
+	}
+}
+</script>
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    function main() {
+        const canvas = document.querySelector('#c');
+        const renderer = new THREE.WebGLRenderer({ canvas });
+        const labelContainerElem = document.querySelector('#labels');
+        const scene = new THREE.Scene();
+
+        addLight();
+        const camera = addCamera();
+        addControls();
+        const cubes = makeCubes();
+        function addControls() {
+            const controls = new OrbitControls(camera, canvas);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        }
+        function addCamera() {
+            const fov = 75;
+            const aspect = 2;  // the canvas default
+            const near = 1.1;
+            const far = 50;
+            const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+            camera.position.z = 7;
+            return camera;
+        }
+        function addLight() {
+            const color = 0xFFFFFF;
+            const intensity = 1;
+            const light = new THREE.DirectionalLight(color, intensity);
+            light.position.set(-1, 2, 4);
+            scene.add(light);
+        }
+
+        function makeInstance(geometry, color, x, name) {
+            const material = new THREE.MeshPhongMaterial({ color });
+            const cube = new THREE.Mesh(geometry, material);
+            scene.add(cube);
+
+            cube.position.x = x;
+
+            const elem = document.createElement('div');
+            elem.textContent = name;
+            labelContainerElem.appendChild(elem);
+
+            return { cube, elem };
+        }
+        function makeCubes() {
+            const boxWidth = 1;
+            const boxHeight = 1;
+            const boxDepth = 1;
+            const geometry = new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth);
+            return [
+                makeInstance(geometry, 0x44aa88, 0, 'Aqua Colored Box'),
+                makeInstance(geometry, 0x8844aa, -2, 'Purple Colored Box'),
+                makeInstance(geometry, 0xaa8844, 2, 'Gold Colored Box'),
+            ]
+        }
+
+        function resizeRendererToDisplaySize(renderer) {
+            const canvas = renderer.domElement;
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+            const needResize = canvas.width !== width || canvas.height !== height;
+            if (needResize) {
+                renderer.setSize(width, height, false);
+            }
+            return needResize;
+        }
+
+        const tempV = new THREE.Vector3();
+        const raycaster = new THREE.Raycaster();
+        function updateVisibleByRayCaster(cube,elem,tempV) {
+            // 调用Raycast获取所有相交的物体
+            // 以相机为起点，物体为终点
+            raycaster.setFromCamera(tempV, camera);
+            const intersectedObjects = raycaster.intersectObjects(scene.children);
+            // 如果第一个相交的是此物体，那么就是可见的
+            const show = intersectedObjects.length && cube === intersectedObjects[0].object;
+            // 大概检查  tempV.z检查此对象的原点是否在截锥体
+            if (!show|| Math.abs(tempV.z) > 1) {
+                // 隐藏Label
+                elem.style.display = 'none';
+                return false
+            } else {
+                // 显示Label
+                elem.style.display = '';
+                return true;
+            }
+        }
+
+        function render(time) {
+            time *= 0.001;
+
+            if (resizeRendererToDisplaySize(renderer)) {
+                const canvas = renderer.domElement;
+                camera.aspect = canvas.clientWidth / canvas.clientHeight;
+                camera.updateProjectionMatrix();
+            }
+
+            cubes.forEach((cubeInfo, ndx) => {
+                const { cube, elem } = cubeInfo;
+                const speed = 1 + ndx * .1;
+                const rot = time * speed;
+                cube.rotation.x = rot;
+                cube.rotation.y = rot;
+                // 获取立方体中心的位置
+                // get the position of the center of the cube
+                cube.updateWorldMatrix(true, false);
+                cube.getWorldPosition(tempV);
+
+                // get the normalized screen coordinate of that position
+                // x and y will be in the -1 to +1 range with x = -1 being
+                // on the left and y = -1 being on the bottom
+                // 获取标准化屏幕坐标，x和y都会在-1和1区间
+                // x = -1 表示在最左侧
+                // y = -1 表示在最底部
+                tempV.project(camera);
+                const visible = updateVisibleByRayCaster(cube,elem,tempV);
+                if (visible) {
+                    // 将标准屏幕坐标转化为CSS坐标
+                    // convert the normalized position to CSS coordinates
+                    const x = canvas.clientWidth / 2 + tempV.x * canvas.clientWidth / 2; // 
+                    const y = canvas.clientHeight / 2 - tempV.y * canvas.clientHeight / 2;
+
+                    // move the elem to that position
+                    // 垂直水平剧中
+                    elem.style.transform = `translate(-50%, -50%) translate(${x}px,${y}px)`;
+                    // 设置排序用的zIndex
+                    elem.style.zIndex = (-tempV.z * .5 + .5) * 100000 | 0;
+                }
+
+            });
+
+            renderer.render(scene, camera);
+
+            requestAnimationFrame(render);
+        }
+
+        requestAnimationFrame(render);
+    }
+
+    main();
+
+</script>

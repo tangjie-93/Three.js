@@ -14,7 +14,6 @@
 
 </html>
 <script type="module">
-    console.log(111)
     import * as THREE from '../js/three.js';
     import Stats from '../js/libs/stats.module.js';
 
@@ -142,7 +141,7 @@
     }
 
     function onWindowResize() {
-
+        // 更新相机
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
 

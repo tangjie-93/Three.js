@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>绘制立方体</title>
+</head>
+<body>
+    
+</body>
+</html>
+<script type="module">
+
+    import * as THREE from '../js/three.js';
+
+    import Stats from '../js/libs/stats.module.js';
+
+    let container, stats;
+    let camera, scene, raycaster, renderer;
+
+    let INTERSECTED;
+    let theta = 0;
+
+    const pointer = new THREE.Vector2();
+    const radius = 100;
+
+    init();
+    animate();
+
+    function init() {
+
+        container = document.createElement( 'div' );
+        document.body.appendChild( container );
+
+        camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 10000 );
+        camera.position.z=1;
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color( 0xf0f0f0 );
+
+        const light = new THREE.DirectionalLight( 0xffffff, 1 );
+        light.position.set( 1, 1, 1 ).normalize();
+        scene.add( light );
+
+        const geometry = new THREE.BoxGeometry( 20, 20, 20 );
+        //类型数组创建顶点颜色color数据
+        // const colors = new Float32Array([
+        //     1, 0, 0, //顶点1颜色
+        //     0, 1, 0, //顶点2颜色
+        //     0, 0, 1, //顶点3颜色
+
+        //     1, 1, 0, //顶点4颜色
+        //     0, 1, 1, //顶点5颜色
+        //     1, 0, 1, //顶点6颜色
+        // ]);
+        // // geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        // geometry.attributes.color = new THREE.BufferAttribute(colors, 3); 
+
+        // console.log('geometry',geometry);
+
+        const object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { 
+            color: Math.random() * 0xffffff, 
+            // vertexColors: THREE.VertexColors
+        } ) );
+            // 旋转角度
+            object.rotation.x = Math.random() * 2 * Math.PI;
+            object.rotation.y = Math.random() * 2 * Math.PI;
+            object.rotation.z = Math.random() * 2 * Math.PI;
+
+            // 缩放
+            object.scale.x = Math.random() + 0.5;
+            object.scale.y = Math.random() + 0.5;
+            object.scale.z = Math.random() + 0.5;
+
+            scene.add( object );
+
+
+        renderer = new THREE.WebGLRenderer();
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        container.appendChild( renderer.domElement );
+
+        stats = new Stats();
+        container.appendChild( stats.dom );
+
+        //
+
+        window.addEventListener( 'resize', onWindowResize );
+
+    }
+
+    function onWindowResize() {
+
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize( window.innerWidth, window.innerHeight );
+
+    }
+
+    //
+
+    function animate() {
+
+        requestAnimationFrame( animate );
+
+        render();
+        stats.update();
+
+    }
+
+    function render() {
+        // 通过改变相机位置来达到旋转的效果 
+        // 相机在球内旋转
+        theta += 0.1;
+
+        camera.position.x = radius * Math.sin( THREE.MathUtils.degToRad( theta ) );
+        camera.position.y = radius * Math.sin( THREE.MathUtils.degToRad( theta ) );
+        camera.position.z = radius * Math.cos( THREE.MathUtils.degToRad( theta ) );
+        camera.lookAt( scene.position );
+
+        camera.updateMatrixWorld();
+
+        renderer.render( scene, camera );
+
+    }
+
+</script>

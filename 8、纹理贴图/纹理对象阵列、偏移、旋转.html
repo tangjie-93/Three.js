@@ -33,8 +33,10 @@
         texture.wrapT = THREE.RepeatWrapping;
         // uv两个方向纹理重复数量
         texture.repeat.set(5, 5);
+        // 纹理明暗效果跟光照位置有关
         var material = new THREE.MeshLambertMaterial({
             map: texture,
+            side: THREE.DoubleSide
         });
         var mesh = new THREE.Mesh(geometry, material); //网格模型对象Mesh
         scene.add(mesh); //网格模型添加到场景中

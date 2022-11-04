@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太阳系的旋转</title>
+</head>
+
+<body>
+
+</body>
+
+</html>
+<!-- https://threejs.org/manual/#zh/scenegraph -->
+<script type="importmap">
+    {
+        "imports": {
+            "three": "../../js/three.js"
+        }
+    }
+</script>
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from "../../js/OrbitControls.js";
+    import { GUI } from "../../js/libs/dat.gui.js";
+    import { AxisGridHelper } from "./AxisGridHelper.js"
+    let camera, scene, renderer, controls, container, points;
+    // 要更新旋转角度的对象数组
+    const objects = [];
+    const gui = new GUI();
+    init();
+    animate();
+    function init() {
+        container = document.createElement('div');
+        document.body.appendChild(container);
+
+        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 500);
+        camera.position.z = 50;
+
+        scene = new THREE.Scene();
+        // scene.fog = new THREE.Fog( 0x000000, 1, 15000 );
+
+        // const pointLight = new THREE.PointLight( 0xff2200 );
+        // pointLight.position.set( 0, 0, 0 );
+        // scene.add( pointLight );
+        // const color = 0xffffff;
+        // const intensity = 3;
+        // const light = new THREE.PointLight(color, intensity);
+        // scene.add(light);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff);
+        dirLight.position.set(0, 0, 1).normalize();
+        scene.add(dirLight);
+        addObjects();
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+        const controls = new OrbitControls(camera, renderer.domElement);
+        window.addEventListener('resize', onWindowResize);
+    }
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        render();
+    }
+
+    function render() {
+        // controls.update( clock.getDelta() );
+        objects.forEach((obj) => {
+            obj.rotation.y += 0.01;
+        });
+        renderer.render(scene, camera);
+
+    }
+    function makeAxisGrid(node, label, units) {
+        const helper = new AxisGridHelper(node, units);
+        gui.add(helper, 'visible').name(label);
+    }
+
+
+    function addObjects() {
+
+        // 太阳系场景 局部空间
+        const solarSystem = new THREE.Object3D();
+        scene.add(solarSystem);
+        objects.push(solarSystem);
+        // 一球多用
+        const radius = 1;
+        const widthSegments = 64;
+        const heightSegments = 64;
+        const sphereGeometry = new THREE.SphereGeometry(
+            radius,
+            widthSegments,
+            heightSegments
+        );
+
+        const sunMaterial = new THREE.MeshPhongMaterial({
+            emissive: 0xffff00,
+            side: THREE.DoubleSide
+        });
+        // 太阳
+        const sunMesh = new THREE.Mesh(sphereGeometry, sunMaterial);
+        sunMesh.scale.set(5, 5, 5); // 扩大太阳的大小
+        solarSystem.add(sunMesh);
+        objects.push(sunMesh);
+
+        // 地球场景 局部空间
+        const earthOrbit = new THREE.Object3D();
+        earthOrbit.position.x = 10;
+        solarSystem.add(earthOrbit);
+        objects.push(earthOrbit);
+
+        const earthMaterial = new THREE.MeshPhongMaterial({
+            color: 0x2233ff,
+            emissive: 0x112244,
+        });
+        // 地球
+        const earthMesh = new THREE.Mesh(sphereGeometry, earthMaterial);
+        // earthMesh.scale.set(0.5, 0.5, 0.5);
+        // earthMesh.position.x = 10;
+        // scene.add(earthMesh);
+        earthOrbit.add(earthMesh);
+        objects.push(earthMesh);
+
+        // 月亮场景 局部空间
+        const moonOrbit = new THREE.Object3D();
+        moonOrbit.position.x = 2;
+        earthOrbit.add(moonOrbit);
+
+        const moonMaterial = new THREE.MeshPhongMaterial({ color: 0x888888, emissive: 0x222222 });
+        //月亮
+        const moonMesh = new THREE.Mesh(sphereGeometry, moonMaterial);
+        moonMesh.scale.set(.5, .5, .5);
+        moonOrbit.add(moonMesh);
+        objects.push(moonMesh);
+
+
+        objects.forEach((node) => {
+            const axes = new THREE.AxesHelper();
+            axes.material.depthTest = false;
+            axes.renderOrder = 1;
+            node.add(axes);
+        });
+
+        makeAxisGrid(solarSystem, 'solarSystem', 26);
+        makeAxisGrid(sunMesh, 'sunMesh');
+        makeAxisGrid(earthOrbit, 'earthOrbit');
+        makeAxisGrid(earthMesh, 'earthMesh');
+        makeAxisGrid(moonOrbit, 'moonOrbit');
+        makeAxisGrid(moonMesh, 'moonMesh');
+    }
+
+</script>

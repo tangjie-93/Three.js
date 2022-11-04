@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>绘制立面</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+</body>
+
+</html>
+
+<script type="importmap">{
+	"imports": {
+		"three": "https://threejs.org/build/three.module.js",
+		"three/addons/": "https://threejs.org/examples/jsm/"
+	}
+}</script>
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    function main() {
+        const canvas = document.querySelector('#c');
+        const renderer = new THREE.WebGLRenderer({ canvas });
+        const scene = new THREE.Scene();
+
+        const fov = 75;
+        const aspect = 2;  // the canvas default
+        const near = 0.1;
+        const far = 1000;
+        const camera = addCamera();
+        // 添加灯光
+        addLight([-3, 1, 1]);
+        addLight([2, 1, .5]);
+        function addCamera(){
+            const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+            camera.position.set(0, 2, 5);
+
+            const controls = new OrbitControls(camera, canvas);
+            controls.target.set(0, 2, 0);
+            controls.minPolarAngle = 0;
+            controls.maxPolarAngle = Math.PI / 2;
+            controls.update();
+            return camera;
+        }
+       
+
+
+        function addLight(position) {
+            const color = 0xFFFFFF;
+            const intensity = 1;
+            const light = new THREE.DirectionalLight(color, intensity);
+            light.position.set(...position);
+            scene.add(light);
+            // Z这样改变target位置，就能看出光线变化
+            scene.add(light.target);
+        }
+       
+
+       
+
+        function createBodyAndTop(){
+            const trunkRadius = .2;
+            const trunkHeight = 1;
+            const trunkRadialSegments = 12;
+            const trunkGeometry = new THREE.CylinderGeometry(
+                trunkRadius, trunkRadius, trunkHeight, trunkRadialSegments);
+
+            const topRadius = trunkRadius * 4;
+            const topHeight = trunkHeight * 2;
+            const topSegments = 12;
+            const topGeometry = new THREE.ConeGeometry(
+                topRadius, topHeight, topSegments);
+
+            const trunkMaterial = new THREE.MeshPhongMaterial({ color: 'brown' });
+            const topMaterial = new THREE.MeshPhongMaterial({ color: 'green' });
+            return {
+                trunkGeometry,
+                topGeometry,
+                trunkMaterial,
+                topMaterial,
+                topHeight,
+                trunkHeight
+            }
+        }
+
+
+        function makeTree(x, z) {
+            const {
+                trunkGeometry,
+                topGeometry,
+                trunkMaterial,
+                topMaterial,
+                topHeight,
+                trunkHeight
+            } = createBodyAndTop();
+            const root = new THREE.Object3D();
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.position.y = trunkHeight / 2;
+            root.add(trunk);
+
+            const top = new THREE.Mesh(topGeometry, topMaterial);
+            top.position.y = trunkHeight + topHeight / 2;
+            root.add(top);
+
+            root.position.set(x, 0, z);
+            scene.add(root);
+
+            return root;
+        }
+        /**
+         * sizeToFitOnScreen
+         * boxSize
+         * boxCenter
+         * camera
+         */
+        function frameArea(sizeToFitOnScreen, boxSize, boxCenter, camera) {
+            const halfSizeToFitOnScreen = sizeToFitOnScreen * 0.5;
+            const halfFovY = THREE.MathUtils.degToRad(camera.fov * .5);
+            const distance = halfSizeToFitOnScreen / Math.tan(halfFovY);
+
+            camera.position.copy(boxCenter);
+            camera.position.z += distance;
+
+            // pick some near and far values for the frustum that
+            // will contain the box.
+            // 设置相机的近平面和远平面
+            camera.near = boxSize / 100;
+            camera.far = boxSize * 100;
+
+            camera.updateProjectionMatrix();
+        }
+        // 制作纹理 将对象绘制到纹理中
+        function makeSpriteTexture(textureSize, obj) {
+            const rt = new THREE.WebGLRenderTarget(textureSize, textureSize);
+
+            const aspect = 1;  // because the render target is square 渲染目标是正方形
+            const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+
+            scene.add(obj);
+
+            // compute the box that contains obj
+            const box = new THREE.Box3().setFromObject(obj);
+
+            // console.log('box',box,new THREE.Box3().expandByObject(obj))
+            //得到盒子的大小
+            const boxSize = box.getSize(new THREE.Vector3());
+            //得到盒子的中心点
+            const boxCenter = box.getCenter(new THREE.Vector3());
+
+            // set the camera to frame the box
+            // 设置相机去构建盒模型
+            const fudge = 1.1;
+            const size = Math.max(...boxSize.toArray()) * fudge;
+            frameArea(size, size, boxCenter, camera);
+
+            renderer.autoClear = false;
+            renderer.setRenderTarget(rt);
+            renderer.render(scene, camera);
+            //渲染完后从场景中清除
+            renderer.setRenderTarget(null);
+            renderer.autoClear = true;
+
+            scene.remove(obj);
+
+            return {
+                offset: boxCenter.multiplyScalar(fudge),
+                scale: size,
+                texture: rt.texture,
+            };
+        }
+
+        // make billboard texture
+        const tree = makeTree(0, 0);
+        const facadeSize = 512;
+        const treeSpriteInfo = makeSpriteTexture(facadeSize, tree);
+
+        function makeSprite(spriteInfo, x, z) {
+            const { texture, offset, scale } = spriteInfo;
+            const mat = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true,
+            });
+            const sprite = new THREE.Sprite(mat);
+            scene.add(sprite);
+            sprite.position.set(
+                offset.x + x,
+                offset.y,
+                offset.z + z);
+            sprite.scale.set(scale, scale, scale);
+        }
+
+        for (let z = -50; z <= 50; z += 10) {
+            for (let x = -50; x <= 50; x += 10) {
+                makeSprite(treeSpriteInfo, x, z);
+            }
+        }
+
+        scene.background = new THREE.Color('lightblue');
+        addGround();
+        function addGround(){
+            const size = 400;
+            const geometry = new THREE.PlaneGeometry(size, size);
+            const material = new THREE.MeshPhongMaterial({ color: 'gray' });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.rotation.x = Math.PI * -0.5;
+            scene.add(mesh);
+        }
+
+        function resizeRendererToDisplaySize(renderer) {
+            const canvas = renderer.domElement;
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+            const needResize = canvas.width !== width || canvas.height !== height;
+            if (needResize) {
+                renderer.setSize(width, height, false);
+            }
+            return needResize;
+        }
+
+        function render() {
+            if (resizeRendererToDisplaySize(renderer)) {
+                const canvas = renderer.domElement;
+                camera.aspect = canvas.clientWidth / canvas.clientHeight;
+                camera.updateProjectionMatrix();
+            }
+
+            renderer.render(scene, camera);
+
+            requestAnimationFrame(render);
+        }
+
+        requestAnimationFrame(render);
+    }
+
+    main();
+
+</script>

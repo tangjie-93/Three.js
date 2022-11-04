@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人物粒子系统</title>
+</head>
+<body>
+    <div id="container"></div>
+</body>
+</html>
+<script type="module">
+
+    import * as THREE from '../js/three.js';
+
+    import Stats from '../js/libs/stats.module.js';
+    import {OrbitControls} from "../js/OrbitControls.js";
+    import { EffectComposer } from '../js/postprocessing/EffectComposer.js';
+    import { RenderPass } from '../js/postprocessing/RenderPass.js';
+    import { ShaderPass } from '../js/postprocessing/ShaderPass.js';
+    import { BloomPass } from '../js/postprocessing/BloomPass.js';
+    import { FilmPass } from '../js/postprocessing/FilmPass.js';
+    import { FocusShader } from '../js/shaders/FocusShader.js';
+    import { OBJLoader } from '../js/loaders/OBJLoader.js';
+
+    let camera, scene, renderer, mesh;
+
+    let parent;
+
+    const meshes = [], cloneMeshes = [];
+
+    let composer, effectFocus;
+
+    const clock = new THREE.Clock();
+
+    let stats;
+
+    init();
+    animate();
+
+    function init() {
+
+        const container = document.querySelector( '#container' );
+
+        camera = new THREE.PerspectiveCamera( 20, window.innerWidth / window.innerHeight, 1, 50000 );
+        camera.position.set( 0, 700, 7000 );
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color( 0x000104 );
+        scene.fog = new THREE.FogExp2( 0x000104, 0.0000675 );
+
+        camera.lookAt( scene.position );
+
+        const loader = new OBJLoader();
+        // 加载模型
+        loader.load( '../models/obj/male02.obj', function ( object ) {
+            console.log('object',object);
+            // object.position.x =  95;
+            // scene.add(object);
+
+            //构建顶点数据
+            const positions = combineBuffer( object, 'position' );
+
+            createMesh( positions, scene, 4.05, - 500, - 350, 600, 0xff7744 );
+            createMesh( positions, scene, 4.05, 500, - 350, 0, 0xff5522 );
+            createMesh( positions, scene, 4.05, - 250, - 350, 1500, 0xff9922 );
+            createMesh( positions, scene, 4.05, - 250, - 350, - 1500, 0xff99ff );
+
+        } );
+
+        loader.load( '../models/obj/female02.obj', function ( object ) {
+            // object.position.x =  195;
+            // scene.add(object);
+            // 构建顶点数据
+            const positions = combineBuffer( object, 'position' );
+            // 创建模型
+            createMesh( positions, scene, 4.05, - 1000, - 350, 0, 0xffdd44 );
+            createMesh( positions, scene, 4.05, 0, - 350, 0, 0xffffff );
+            createMesh( positions, scene, 4.05, 1000, - 350, 400, 0xff4422 );
+            createMesh( positions, scene, 4.05, 250, - 350, 1500, 0xff9955 );
+            createMesh( positions, scene, 4.05, 250, - 350, 2500, 0xff77dd );
+
+        } );
+        addLight();
+        addPoints();
+
+        const AxesHelper = new THREE.AxesHelper(1000);
+		scene.add(AxesHelper);
+
+        renderer = new THREE.WebGLRenderer();
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        renderer.autoClear = false;
+        container.appendChild( renderer.domElement );
+        //创建控件对象  相机对象camera作为参数   控件可以监听鼠标的变化，改变相机对象的属性
+        const controls = new OrbitControls(camera,renderer.domElement);
+        //监听鼠标事件，触发渲染函数，更新canvas画布渲染效果
+        controls.addEventListener('change', render);
+
+
+        
+
+        // postprocessing
+
+        // const renderModel = new RenderPass( scene, camera );
+        // const effectBloom = new BloomPass( 0.75 );
+        // const effectFilm = new FilmPass( 0.5, 0.5, 1448, false );
+
+        // effectFocus = new ShaderPass( FocusShader );
+
+        // effectFocus.uniforms[ "screenWidth" ].value = window.innerWidth * window.devicePixelRatio;
+        // effectFocus.uniforms[ "screenHeight" ].value = window.innerHeight * window.devicePixelRatio;
+
+        // composer = new EffectComposer( renderer );
+
+        // composer.addPass( renderModel );
+        // composer.addPass( effectBloom );
+        // composer.addPass( effectFilm );
+        // composer.addPass( effectFocus );
+
+        window.addEventListener( 'resize', onWindowResize );
+
+    }
+    // 添加例子
+    function addPoints(){
+        parent = new THREE.Object3D();
+        scene.add( parent );
+        // 添加点 粒子系统
+        const grid = new THREE.Points( new THREE.PlaneGeometry( 15000, 15000, 64, 64 ), new THREE.PointsMaterial( { color: 0xff0000, size: 10 } ) );
+        grid.position.y = - 400;
+        // 逆时针旋转90度
+        grid.rotation.x = - Math.PI / 2;
+        parent.add( grid );
+    }
+    // 添加方向光
+    function addLight(){
+        const light = new THREE.DirectionalLight( 0xffffff, 1 );
+        light.position.set( 1, 1, 1 ).normalize();
+        scene.add( light );
+    }
+
+    function onWindowResize() {
+
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        camera.lookAt( scene.position );
+
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        // composer.setSize( window.innerWidth, window.innerHeight );
+
+        // effectFocus.uniforms[ "screenWidth" ].value = window.innerWidth * window.devicePixelRatio;
+        // effectFocus.uniforms[ "screenHeight" ].value = window.innerHeight * window.devicePixelRatio;
+
+    }
+    // 构建顶点数据  
+    function combineBuffer( model, bufferName ) {
+        const vertices = [];
+        model.traverse( function ( child ) {
+            if ( child.isMesh ) {
+                const buffer = child.geometry.attributes[ bufferName ];
+                vertices.push(...buffer.array);
+            }
+
+        } );
+        console.log(Array.from(vertices ).filter((item,index)=>(index+1)%3===0));
+
+        const positions = new Float32Array( vertices );
+        return new THREE.BufferAttribute( positions, 3 );
+    }
+    // 在特定位置创建 一定比例 一定颜色的 mesh
+    /**
+     * positions 顶点数据
+     * scene 视图
+     * scale 缩放比例
+     * x, y, z 物体的位置
+     * color 物体的颜色
+    */
+    function createMesh( positions, scene, scale, x, y, z, color ) {
+        // 创建geometry
+        const geometry = new THREE.BufferGeometry();
+        // 设置位置
+        geometry.setAttribute( 'position', positions.clone() );
+        // 保存原始数据
+        geometry.setAttribute( 'initialPosition', positions.clone() );
+        // 动态绘制
+        geometry.attributes.position.setUsage( THREE.DynamicDrawUsage );
+        // 粒子存放的的位置
+        const clones = [
+
+            [ 6000, 0, - 4000 ],
+            [ 5000, 0, 0 ],
+            [ 1000, 0, 5000 ],
+            [ 1000, 0, - 5000 ],
+            [ 4000, 0, 2000 ],
+            [ - 4000, 0, 1000 ],
+            [ - 5000, 0, - 5000 ],
+
+            [ 0, 0, 0 ]
+
+        ];
+        // 构建模型
+        for ( let i = 0; i < clones.length; i ++ ) {
+
+            const c = ( i < clones.length - 1 ) ? 0x252525 : color;
+
+            mesh = new THREE.Points( geometry, new THREE.PointsMaterial( { size: 30, color: c } ) );
+            mesh.scale.x = mesh.scale.y = mesh.scale.z = scale;
+
+            mesh.position.x = x + clones[ i ][ 0 ];
+            mesh.position.y = y + clones[ i ][ 1 ];
+            mesh.position.z = z + clones[ i ][ 2 ];
+
+            parent.add( mesh );
+
+            cloneMeshes.push( { mesh: mesh, speed: 0.5 + Math.random() } );
+
+        }
+        // 保存最后一个mesh
+        meshes.push( {
+            mesh, 
+            verticesDown: 0, 
+            verticesUp: 0, 
+            direction: 0, // 粒子移动的方向
+            speed: 15, 
+            delay: Math.floor( 200 + 200 * Math.random() ),
+            start: Math.floor( 100 + 200 * Math.random() ),
+        } );
+
+    }
+
+    function animate() {
+
+        requestAnimationFrame( animate );
+        render();
+    }
+
+    function render() {
+        renderer.render( scene, camera );
+        // clock.getDelta(); j计算每一帧的时间
+        let delta = 10 * clock.getDelta();
+
+        delta = delta < 2 ? delta : 2;
+
+        parent.rotation.y += - 0.02 * delta;
+        // 旋转保存的clone的模型
+        for ( let j = 0; j < cloneMeshes.length; j ++ ) {
+
+            const cm = cloneMeshes[ j ];
+            cm.mesh.rotation.y += - 0.1 * delta * cm.speed;
+
+        }
+
+        for ( let j = 0; j < meshes.length; j ++ ) {
+
+            const data = meshes[ j ];
+            const positions = data.mesh.geometry.attributes.position;
+            const initialPositions = data.mesh.geometry.attributes.initialPosition;
+
+            const count = positions.count;
+
+            if ( data.start > 0 ) {
+                //
+                data.start -= 1;
+
+            } else {
+
+                if ( data.direction === 0 ) {
+                    // 向下移动
+                    data.direction = - 1;
+
+                }
+
+            }
+
+            for ( let i = 0; i < count; i ++ ) {
+
+                const px = positions.getX( i );
+                const py = positions.getY( i );
+                const pz = positions.getZ( i );
+                // falling down 向下移动
+                if ( data.direction < 0 ) {
+                    // 例子在y轴上方时
+                    if ( py > 0 ) {
+
+                        positions.setXYZ(
+                            i,
+                            // 左右移动
+                            px + 1.5 * ( 0.50 - Math.random() ) * data.speed * delta,
+                            // 上下移动
+                            py + 3.0 * ( 0.25 - Math.random() ) * data.speed * delta,
+                            pz + 1.5 * ( 0.50 - Math.random() ) * data.speed * delta
+                        );
+
+                    } else {
+
+                        // 计算到达y轴的例子的数量
+                        data.verticesDown += 1;
+
+                    }
+
+                }
+
+                // rising up
+                if ( data.direction > 0 ) {
+
+                    const ix = initialPositions.getX( i );
+                    const iy = initialPositions.getY( i );
+                    const iz = initialPositions.getZ( i );
+
+                    const dx = Math.abs( px - ix );
+                    const dy = Math.abs( py - iy );
+                    const dz = Math.abs( pz - iz );
+
+                    const d = dx + dy + dx;
+                    // 判断现在的位置跟原始位置的距离
+                    if ( d > 1 ) {
+
+                        positions.setXYZ(
+                            i,
+                            px - ( px - ix ) / dx * data.speed * delta * ( 0.85 - Math.random() ),
+                            py - ( py - iy ) / dy * data.speed * delta * ( 1 + Math.random() ),
+                            pz - ( pz - iz ) / dz * data.speed * delta * ( 0.85 - Math.random() )
+                        );
+
+                    } else {
+
+                        data.verticesUp += 1;
+
+                    }
+
+                }
+
+            }
+
+            // all vertices down 所有的粒子都落到y轴
+            if ( data.verticesDown >= count ) {
+
+                if ( data.delay <= 0 ) {
+
+                    data.direction = 1;
+                    data.speed = 5;
+                    data.verticesDown = 0;
+                    data.delay = 320;
+
+                } else {
+
+                    data.delay -= 1;
+
+                }
+
+            }
+
+            // all vertices up
+            if ( data.verticesUp >= count ) {
+
+                if ( data.delay <= 0 ) {
+
+                    data.direction = - 1;
+                    data.speed = 15;
+                    data.verticesUp = 0;
+                    data.delay = 120;
+
+                } else {
+
+                    data.delay -= 1;
+
+                }
+
+            }
+
+            positions.needsUpdate = true;
+
+        }
+
+        // composer.render( 0.01 );
+
+    }
+
+</script>

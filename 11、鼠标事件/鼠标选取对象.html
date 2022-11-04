@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鼠标选取对象</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+</body>
+
+</html>
+<script type="importmap">
+    {
+	"imports": {
+		"three": "https://threejs.org/build/three.module.js",
+		"three/addons/": "https://threejs.org/examples/jsm/"
+	}
+}
+</script>
+<script type="module">
+    /*** 这种拾取方式有三个问题
+     * 1.这是基于CPU运算的 Javascript遍历每一个对象，检查其包围盒或包围球是否与射线相交，如果相交，它必须遍历组成该对象的每一个三角，检查它们是否与射线相交。
+        好处是，JavaScript能够很容易计算出射线在哪里与三角相交，并为我们提供相关数据。举个例子，如果你想要在相交的位置放置一个标记。
+        缺点是，CPU要做大量的工作,当你的对象由大量的三角组成时，这个过程会有些慢。
+       2.它无法处理一些奇怪的着色器或者位移 如果，你有一个变形或者拟态几何形状的着色器，Javascript无法理解这个变形，
+       它会给出错误的答案。举例：据我所知，你不能对有皮肤的对象使用这种方式。
+       3.无法处理透明的孔洞
+
+       解决方案：为了完成GPU拾取，对每一个对象使用唯一的颜色进行离屏渲染。
+       然后，检查鼠标位置关联的像素的颜色。这个颜色就能告诉我们哪个对象被选中。
+       问题1的解决方案：拾取时我们只需读取1px，所以我们可以设置摄像机，只绘制1px，通过 PerspectiveCamera.setViewOffset 方法，
+       可以告诉THREE.js 计算出一个摄像机 只呈现一个大矩形的一个很小的部分
+     */
+    import * as THREE from 'three';
+    import {PickHelper} from "./PickHelper.js";
+    function main() {
+        const canvas = document.querySelector('#c');
+        const renderer = new THREE.WebGLRenderer({ canvas });
+
+        const fov = 60;
+        const aspect = 2;  // the canvas default
+        const near = 0.1;
+        const far = 200;
+        const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+        camera.position.z = 30;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('white');
+
+        // put the camera on a pole (parent it to an object)
+        // so we can spin the pole to move the camera around the scene
+        const cameraPole = new THREE.Object3D();
+        scene.add(cameraPole);
+        cameraPole.add(camera);
+
+        {
+            const color = 0xFFFFFF;
+            const intensity = 1;
+            const light = new THREE.DirectionalLight(color, intensity);
+            light.position.set(-1, 2, 4);
+            camera.add(light);
+        }
+
+        const boxWidth = 1;
+        const boxHeight = 1;
+        const boxDepth = 1;
+        const geometry = new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth);
+
+        function rand(min, max) {
+            if (max === undefined) {
+                max = min;
+                min = 0;
+            }
+            return min + (max - min) * Math.random();
+        }
+
+        function randomColor() {
+            return `hsl(${rand(360) | 0}, ${rand(50, 100) | 0}%, 50%)`;
+        }
+
+        const numObjects = 100;
+        for (let i = 0; i < numObjects; ++i) {
+            const material = new THREE.MeshPhongMaterial({
+                color: randomColor(),
+            });
+
+            const cube = new THREE.Mesh(geometry, material);
+            scene.add(cube);
+
+            cube.position.set(rand(-20, 20), rand(-20, 20), rand(-20, 20));
+            cube.rotation.set(rand(Math.PI), rand(Math.PI), 0);
+            cube.scale.set(rand(3, 6), rand(3, 6), rand(3, 6));
+        }
+
+        function resizeRendererToDisplaySize(renderer) {
+            const canvas = renderer.domElement;
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+            const needResize = canvas.width !== width || canvas.height !== height;
+            if (needResize) {
+                renderer.setSize(width, height, false);
+            }
+            return needResize;
+        }
+
+        const pickHelper = new PickHelper({inputElement:canvas});
+
+        function render(time) {
+            time *= 0.001;  // convert to seconds;
+
+            if (resizeRendererToDisplaySize(renderer)) {
+                const canvas = renderer.domElement;
+                camera.aspect = canvas.clientWidth / canvas.clientHeight;
+                camera.updateProjectionMatrix();
+            }
+
+            cameraPole.rotation.y = time * .1;
+
+            pickHelper.pick(pickHelper.pickPosition, scene, camera, time);
+
+            renderer.render(scene, camera);
+
+            requestAnimationFrame(render);
+        }
+        requestAnimationFrame(render);
+
+        function getCanvasRelativePosition(event) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (event.clientX - rect.left) * canvas.width / rect.width,
+                y: (event.clientY - rect.top) * canvas.height / rect.height,
+            };
+        }
+
+    }
+
+    main();
+
+</script>

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>使用canvas生成动态纹理-立方体</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+</body>
+
+</html>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://threejs.org/build/three.module.js"
+        }
+    }
+</script>
+<script type="module">
+    import * as THREE from 'three';
+
+    function main() {
+        const canvas = document.querySelector('#c');
+        const renderer = new THREE.WebGLRenderer({ canvas });
+        const scene = new THREE.Scene();
+        const camera = addCamera();
+        function addCamera(){
+            const fov = 75;
+            const aspect = 2;  // the canvas default
+            const near = 0.1;
+            const far = 5;
+            const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+            camera.position.z = 2;
+            return camera;
+        }
+        
+        function createGeometry(){
+            const boxWidth = 1;
+            const boxHeight = 1;
+            const boxDepth = 1;
+            const geometry = new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth);
+            return geometry;
+        }
+
+        function createTexture(){
+            const ctx = document.createElement('canvas').getContext('2d');
+            ctx.canvas.width = 256;
+            ctx.canvas.height = 256;
+            ctx.fillStyle = '#FFF';
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            const texture = new THREE.CanvasTexture(ctx.canvas);
+            return texture;
+        }
+
+        function createCube(){
+            const geometry = createGeometry();
+            const texture = createTexture();
+            const material = new THREE.MeshBasicMaterial({
+                map: texture,
+            });
+            const cube = new THREE.Mesh(geometry, material);
+            scene.add(cube);
+            return cube;
+        }
+
+
+
+       function  updateCube(time,cube){
+            const speed = .2 + ndx * .1;
+            const rot = time * speed;
+            cube.rotation.x = rot;
+            cube.rotation.y = rot;
+       }
+    
+
+        function resizeRendererToDisplaySize(renderer) {
+            const canvas = renderer.domElement;
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+            const needResize = canvas.width !== width || canvas.height !== height;
+            if (needResize) {
+                renderer.setSize(width, height, false);
+            }
+            return needResize;
+        }
+
+        function randInt(min, max) {
+            if (max === undefined) {
+                max = min;
+                min = 0;
+            }
+            return Math.random() * (max - min) + min | 0;
+        }
+
+        function drawRandomDot() {
+            ctx.fillStyle = `#${randInt(0x1000000).toString(16).padStart(6, '0')}`;
+            ctx.beginPath();
+
+            const x = randInt(256);
+            const y = randInt(256);
+            const radius = randInt(10, 64);
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function render(time) {
+            time *= 0.001;
+
+            if (resizeRendererToDisplaySize(renderer)) {
+                const canvas = renderer.domElement;
+                camera.aspect = canvas.clientWidth / canvas.clientHeight;
+                camera.updateProjectionMatrix();
+            }
+
+            drawRandomDot();
+            texture.needsUpdate = true;
+
+            updateCube(time,cube)
+
+            renderer.render(scene, camera);
+
+            requestAnimationFrame(render);
+        }
+
+        requestAnimationFrame(render);
+    }
+
+    main();
+
+</script>

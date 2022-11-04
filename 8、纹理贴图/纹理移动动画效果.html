@@ -29,12 +29,12 @@
  * 创建一个设置重复纹理的管道
  */
         var curve = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(-80, -40, 0),
-            new THREE.Vector3(-70, 40, 0),
-            new THREE.Vector3(70, 40, 0),
+            new THREE.Vector3(-180, -40, 0),
+            new THREE.Vector3(-70, -40, 0),
+            new THREE.Vector3(-60, -40, 0),
             new THREE.Vector3(80, -40, 0)
         ]);
-        var tubeGeometry = new THREE.TubeGeometry(curve, 100, 0.6, 50, false);
+        var tubeGeometry = new THREE.TubeGeometry(curve, 100, 10, 50, true);
         var textureLoader = new THREE.TextureLoader();
         var texture = textureLoader.load('../img/1.jpg');
         // 设置阵列模式为 RepeatWrapping
@@ -85,7 +85,7 @@
             renderer.render(scene, camera); //执行渲染操作
             requestAnimationFrame(render);
             // 设置纹理偏移
-            texture.offset.x -= 0.06
+            texture.offset.x -= 0.01
         }
         render();
 

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>风车</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+    }
+
+    #c {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+</body>
+
+</html>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://threejs.org/build/three.module.js",
+            "three/addons/": "https://threejs.org/examples/jsm/"
+        }
+    }
+</script><!-- Remove this when import maps will be widely supported -->
+<script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+  import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+
+  function main() {
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    renderer.outputEncoding = THREE.sRGBEncoding;
+
+    const fov = 45;
+    const aspect = 2;  // the canvas default
+    const near = 0.1;
+    const far = 100;
+    const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+    camera.position.set(0, 10, 20);
+
+    const controls = new OrbitControls(camera, canvas);
+    controls.target.set(0, 5, 0);
+    controls.update();
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('black');
+
+    addGround();
+    addLights();
+    addModel();
+    // 添加地面
+    function addGround() {
+      const planeSize = 4000;
+      const loader = new THREE.TextureLoader();
+      const texture = loader.load('https://threejs.org/manual/examples/resources/images/checker.png');
+      texture.encoding = THREE.sRGBEncoding;
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.magFilter = THREE.NearestFilter;
+      const repeats = planeSize / 200;
+      texture.repeat.set(repeats, repeats);
+
+      const planeGeo = new THREE.PlaneGeometry(planeSize, planeSize);
+      const planeMat = new THREE.MeshPhongMaterial({
+        map: texture,
+        side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(planeGeo, planeMat);
+      mesh.rotation.x = Math.PI * -.5;
+      scene.add(mesh);
+    }
+    // 添加光照
+    function addLights() {
+      // 添加半球光
+      const skyColor = 0xB1E1FF;  // light blue
+      const groundColor = 0xB97A20;  // brownish orange
+      const intensity = 1;
+      const light = new THREE.HemisphereLight(skyColor, groundColor, intensity);
+      scene.add(light);
+
+      //添加方向光
+      const color = 0xFFFFFF;
+      // const intensity = 1;
+      const directionalLight = new THREE.DirectionalLight(color, intensity);
+      light.position.set(5, 10, 2);
+      scene.add(directionalLight);
+      scene.add(directionalLight.target);
+
+    }
+    // 根据物体设置相机的位置
+    function frameArea(sizeToFitOnScreen, boxSize, boxCenter, camera) {
+      
+      const halfSizeToFitOnScreen = sizeToFitOnScreen * 0.5;
+      // 
+      const halfFovY = THREE.MathUtils.degToRad(camera.fov * .5);
+      const distance = halfSizeToFitOnScreen / Math.tan(halfFovY);
+      // compute a unit vector that points in the direction the camera is now
+      // in the xz plane from the center of the box
+      // 把盒子到摄像机的y分量归零 最终得到一个平行于XZ平面的向量
+      const direction = (new THREE.Vector3())
+        .subVectors(camera.position, boxCenter)
+        .multiply(new THREE.Vector3(1, 0, 1))
+        .normalize();
+
+      // move the camera to a position distance units way from the center
+      // in whatever direction the camera was from the center already
+      // 设置相机的位置 distance+ 盒子的位置
+      camera.position.copy(direction.multiplyScalar(distance).add(boxCenter));
+
+      // pick some near and far values for the frustum that
+      // will contain the box.
+      camera.near = boxSize / 100;
+      camera.far = boxSize * 100;
+
+      camera.updateProjectionMatrix();
+
+      // point the camera to look at the center of the box
+      camera.lookAt(boxCenter.x, boxCenter.y, boxCenter.z);
+    }
+
+    function addModel() {
+      const mtlLoader = new MTLLoader();
+      mtlLoader.load('https://threejs.org/manual/examples/resources/models/windmill_2/windmill-fixed.mtl', (mtl) => {
+        mtl.preload();
+        const objLoader = new OBJLoader();
+        objLoader.setMaterials(mtl);
+        objLoader.load('https://threejs.org/manual/examples/resources/models/windmill_2/windmill.obj', (root) => {
+          scene.add(root);
+
+          // compute the box that contains all the stuff
+          // from root and below
+          const box = new THREE.Box3().setFromObject(root);
+
+          const boxSize = box.getSize(new THREE.Vector3()).length();
+          const boxCenter = box.getCenter(new THREE.Vector3());
+          // 根据包围盒离设置相机的位置
+          // set the camera to frame the box
+          frameArea(boxSize * 1.2, boxSize, boxCenter, camera);
+
+          // update the Trackball controls to handle the new size
+          controls.maxDistance = boxSize * 10;
+          controls.target.copy(boxCenter);
+          controls.update();
+        });
+      });
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+      const canvas = renderer.domElement;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const needResize = canvas.width !== width || canvas.height !== height;
+      if (needResize) {
+        renderer.setSize(width, height, false);
+      }
+      return needResize;
+    }
+
+    function render() {
+
+      if (resizeRendererToDisplaySize(renderer)) {
+        const canvas = renderer.domElement;
+        camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        camera.updateProjectionMatrix();
+      }
+
+      renderer.render(scene, camera);
+
+      requestAnimationFrame(render);
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  main();
+
+</script>

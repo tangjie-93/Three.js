@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+
+</body>
+
+</html>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "../../js/three.js"
+        }
+    }
+</script>
+<script type="module">
+    import * as THREE from 'three';
+    const scene = new THREE.Scene();
+    const loader = new THREE.TextureLoader();
+    const cubes = [];
+    const boxWidth = 10;
+    const boxHeight = 10;
+    const boxDepth = 10;
+    const geometry = new THREE.ConeGeometry( 5, 20, 4 );
+    // 不同面不同的贴图 使用多种材质去实现
+    const materials = [
+        new THREE.MeshBasicMaterial({ map: loader.load('../../img/1.jpg') }),
+        new THREE.MeshBasicMaterial({ map: loader.load('../../img/grass.jpg') }),
+        new THREE.MeshBasicMaterial({ map: loader.load('../../img/1.jpg') }),
+        new THREE.MeshBasicMaterial({ map: loader.load('../../img/grass.jpg') }),
+        new THREE.MeshBasicMaterial({ map: loader.load('../../img/1.jpg') }),
+        // new THREE.MeshBasicMaterial({ map: loader.load('../../img/grass.jpg') }),
+    ];
+    const cube = new THREE.Mesh(geometry, materials);
+
+    scene.add(cube);
+    cubes.push(cube);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 500);
+    camera.position.z = 150;
+
+
+
+    const dirLight = new THREE.DirectionalLight(0xffffff);
+    dirLight.position.set(0, 0, 1).normalize();
+    scene.add(dirLight);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    container.appendChild(renderer.domElement);
+
+    function render(time) {
+        time *= 0.001;
+
+        if (resizeRendererToDisplaySize(renderer)) {
+            const canvas = renderer.domElement;
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+        }
+
+        cubes.forEach((cube, ndx) => {
+            const speed = .2 + ndx * .1;
+            const rot = time * speed;
+            cube.rotation.x = rot;
+            cube.rotation.y = rot;
+        });
+
+        renderer.render(scene, camera);
+
+        requestAnimationFrame(render);
+    }
+    function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+            renderer.setSize(width, height, false);
+        }
+        return needResize;
+    }
+    requestAnimationFrame(render);
+
+</script>

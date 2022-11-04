@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+
+</body>
+
+</html>
+
+<script type="module">
+    import { Vector3 } from "./Vector3.js";
+    const pitch = Math.PI;
+    const yaw = Math.PI / 2;
+    let dir = new Vector3(0, 1, 0);
+    //绕x，z轴旋转
+    dir.applyAxisAngle(new Vector3(1, 0, 0), pitch);
+    console.log(JSON.stringify(dir))
+    dir.applyAxisAngle(new Vector3(0, 0, 1), yaw);
+    console.log(JSON.stringify(dir))
+    // console.log('dir', dir);
+</script>
