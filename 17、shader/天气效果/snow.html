@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>下雪</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+
+</body>
+
+</html>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://threejs.org/build/three.module.js",
+            "three/addons/": "https://threejs.org/examples/jsm/"
+
+        }
+    }
+</script>
+<script type="module">
+    import { Mesh, FrontSide, Color, PlaneBufferGeometry, RawShaderMaterial,WebGLRenderer,DirectionalLight,
+        PerspectiveCamera,FogExp2,
+        Scene
+     } from 'three';
+
+     const vertexShader = `
+ varying vec2 vUv;
+ void main() {
+     vUv = uv;
+     gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+ 
+ }`;
+ const fragmentShader = `
+     #define PI 3.14159
+     #define	TAU 6.28318
+     uniform sampler2D baseTexture;
+     uniform sampler2D bloomTexture;
+     varying vec2 vUv;
+     uniform float time;
+     vec4 getTexture( sampler2D texelToLinearTexture ) {
+         vec4 texColor = LinearToLinear( texture2D( texelToLinearTexture , vUv ) );
+         return texColor;
+     }
+     //snow original -> http://glslsandbox.com/e#36547.1
+     float snow(vec2 uv,float scale)
+     {
+         //float time = iTime*0.75;
+         uv+=time/scale;
+         uv.y+=time*2./scale;
+         uv.x+=sin(uv.y+time*.5)/scale;
+         uv*=scale;
+         vec2 s=floor(uv);
+         vec2 f=fract(uv);
+         float k=3.0;
+         vec2 p =.5+.35*sin(11.*fract(sin((s+scale)*mat2(7.0,3.0,6.0,5.0))*5.))-f;
+         float d=length(p);
+         k=min(d,k);
+         k=smoothstep(0.,k,sin(f.x+f.y)*0.01);
+         return k;
+     }
+ 
+ 
+     vec3 _Snow(vec2 uv,vec3 background)
+     {
+         float c = snow(uv,30.)*.3;
+         c+=snow(uv,20.)*.5;
+         c+=snow(uv,15.)*.8;
+         c+=snow(uv,10.);
+         c+=snow(uv,8.);
+         c+=snow(uv,6.);
+         c+=snow(uv,5.);
+         c = clamp(c,0.0,1.0);
+         vec3 scol = vec3(0.8,0.8,0.8);
+         scol = mix(background,scol,c);
+         return scol;
+     }
+     void main() {
+         vec2 iResolution = vec2(3840,2160);
+         vec2 p = (gl_FragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
+         vec4 color = getTexture( bloomTexture );
+         vec3 col = _Snow(p.xy*0.5, color.rgb);
+         gl_FragColor = vec4(col,color.a);
+ 
+     }`;
+    /**
+     * 返回自定义的特效纹理，类似雷达图
+     * @param {Object} [args] 传参
+     * @param {Object} args.color 颜色
+     * @param {number} args.startAng 雷达扫面的起始角，默认值0.0，弧度制
+     * @param {number} args.endAng 雷达扫面的終角，默认值0.5 * PI，弧度制，取值范围0-PI
+     * @param {number} args.radius 圆环的半径，默认值10.0
+     * @param {number} args.speed 旋转的速度，默认值1.0，取值范围1-10
+     * @returns {Object} 几何体 @instance THREE.Mesh
+     */
+    function createRadarCircle(args) {
+     const material =  new ShaderMaterial({
+             uniforms: {
+                 baseTexture: {value: null},
+                 bloomTexture: {value: texture},
+                 time: {value: time},
+             },
+             vertexShader: vertexShader,
+             fragmentShader: fragmentShader,
+             defines: {}
+         });
+        let mesh = new Mesh(geometry, material);
+        mesh.flag = 1;
+        mesh.update = function () {
+            
+        };
+        return mesh;
+    }
+    function init(){
+        const canvas = document.querySelector('#c');
+        const renderer = new WebGLRenderer({ canvas });
+        renderer.autoClearColor = true;
+
+        const fov = 75;
+        const aspect = 2;  // the canvas default
+        const near = 0.1;
+        const far = 50;
+        const camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.z = 20;
+
+        const scene = new Scene();
+        const color = 0xFFFFFF;
+        const intensity = 1;
+        const light = new DirectionalLight(color, intensity);
+        light.position.set(-1, 2, 4);
+        scene.add(light);
+        return {
+            scene,camera,renderer 
+        }
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+            renderer.setSize(width, height, false);
+        }
+        return needResize;
+    }
+
+    const { scene,camera,renderer } = init();
+
+    const radar = createRadarCircle({});
+    scene.add(radar);
+
+    function render(time) {
+        time *= 0.001;
+
+        if (resizeRendererToDisplaySize(renderer)) {
+            const canvas = renderer.domElement;
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+        }
+
+
+        renderer.render(scene, camera);
+        radar.update();
+
+        requestAnimationFrame(render);
+    }
+
+
+
+    requestAnimationFrame(render);
+
+
+
+
+</script>

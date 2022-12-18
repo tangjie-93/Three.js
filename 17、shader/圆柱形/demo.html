@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扩散效果</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+
+</body>
+
+</html>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://threejs.org/build/three.module.js",
+            "three/addons/": "https://threejs.org/examples/jsm/"
+
+        }
+    }
+</script>
+<script type="module">
+    // import {
+    //     Mesh, FrontSide, Color, PlaneBufferGeometry, RawShaderMaterial, WebGLRenderer, DirectionalLight,
+    //     PerspectiveCamera,  AdditiveBlending, SphereGeometry, MeshBasicMaterial, TextureLoader,
+    //     Scene,BufferGeometry,BufferAttribute,DoubleSide,
+    //     ShaderMaterial
+    // } from 'three';
+
+    /**
+ * @file 圆柱形区域
+ */
+import {
+    WebGLRenderer,
+    DirectionalLight,
+    PerspectiveCamera,
+    Scene,
+    Vector3,
+    Object3D,
+    Mesh,
+    MeshBasicMaterial,
+    RingBufferGeometry,
+    CircleBufferGeometry,
+    FrontSide,
+    CylinderGeometry,
+    BufferGeometry,
+    Color,
+    Float32BufferAttribute,
+    DoubleSide
+} from 'three';
+
+export default function createServerPark(radius, height, color, gradient = true) {
+    const obj = new Object3D();
+    if (!radius) {
+        radius = 10;
+    }
+    if (!height) {
+        height = radius * 2;
+    }
+    color = color ? (color instanceof Color ? color : new Color(color)) : new Color();
+
+    // 外环
+    const ringGeometry = new RingBufferGeometry(0.7 * radius, 0.9 * radius, 32);
+    const material = new MeshBasicMaterial({color: color, side: FrontSide, transparent: true, opacity: 0.7});
+    const ring = new Mesh(ringGeometry, material);
+    obj.add(ring);
+
+    // // 圆心
+    const circleGeometry = new CircleBufferGeometry(0.5 * radius, 32, 32);
+    const circle = new Mesh(circleGeometry, material);
+    obj.add(circle);
+
+    // 圆柱
+    const buffergeometry = new BufferGeometry();
+    const data = generateTorso(radius, height, color);
+    buffergeometry.setAttribute('position', new Float32BufferAttribute(data.position, 3));
+    buffergeometry.setAttribute('color', new Float32BufferAttribute(data.color, 4));
+    buffergeometry.setIndex(data.index);
+    const cylinder = new Mesh(
+        buffergeometry,
+        new MeshBasicMaterial({vertexColors: true, side: DoubleSide, color: color, transparent: true, opacity: 0.9})
+    );
+    obj.add(cylinder);
+    obj.scale.set(0.2,0.2,0.2);
+    obj.rotation.x = -Math.PI/4;
+    return obj;
+}
+
+function generateTorso(radius, height, color) {
+    let x;
+    let y;
+    let normal = new Vector3();
+    let vertex = new Vector3();
+
+    let groupCount = 0;
+    const radiusBottom = radius;
+    const radiusTop = radius;
+    const heightSegments = 1;
+    const radialSegments = 32;
+    const thetaLength = Math.PI * 2.0;
+    const thetaStart = 0;
+    // this will be used to calculate the normal
+    let slope = (radiusBottom - radiusTop) / height;
+    const vertices = [];
+    const normals = [];
+    const colors = [];
+    const indices = [];
+    const indexArray = [];
+    // generate vertices, normals and colors
+    let index = 0;
+    for (y = 0; y <= heightSegments; y++) {
+        let indexRow = [];
+
+        let v = y / heightSegments;
+
+        // calculate the radius of the current row
+
+        let radius = v * (radiusBottom - radiusTop) + radiusTop;
+
+        for (x = 0; x <= radialSegments; x++) {
+            let u = x / radialSegments;
+
+            let theta = u * thetaLength + thetaStart;
+
+            let sinTheta = Math.sin(theta);
+            let cosTheta = Math.cos(theta);
+
+            // vertex
+
+            vertex.x = radius * sinTheta;
+            vertex.y = radius * cosTheta;
+            vertex.z = v * height;
+            colors.push(color.r, color.g, color.b, 1 - 0.75 * v);
+            vertices.push(vertex.x, vertex.y, vertex.z);
+
+            // normal
+
+            normal.set(sinTheta, slope, cosTheta).normalize();
+            normals.push(normal.x, normal.y, normal.z);
+
+            // uv
+
+            // uvs.push(u, 1 - v);
+
+            // save index of vertex in respective row
+
+            indexRow.push(index++);
+        }
+
+        // now save vertices of the row in our index array
+
+        indexArray.push(indexRow);
+    }
+
+    // generate indices
+
+    for (x = 0; x < radialSegments; x++) {
+        for (y = 0; y < heightSegments; y++) {
+            // we use the index array to access the correct indices
+
+            let a = indexArray[y][x];
+            let b = indexArray[y + 1][x];
+            let c = indexArray[y + 1][x + 1];
+            let d = indexArray[y][x + 1];
+
+            // faces
+
+            indices.push(a, b, d);
+            indices.push(b, c, d);
+        }
+    }
+    return {position: vertices, color: colors, index: indices};
+}
+
+
+    function init() {
+        const canvas = document.querySelector('#c');
+        const renderer = new WebGLRenderer({ canvas });
+        renderer.autoClearColor = true;
+
+        const fov = 75;
+        const aspect = 2;  // the canvas default
+        const near = 0.1;
+        const far = 50;
+        const camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.z = 20;
+
+        const scene = new Scene();
+        const color = 0xFFFFFF;
+        const intensity = 1;
+        const light = new DirectionalLight(color, intensity);
+        light.position.set(-1, 2, 4);
+        scene.add(light);
+        return {
+            scene, camera, renderer
+        }
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+            renderer.setSize(width, height, false);
+        }
+        return needResize;
+    }
+
+    const { scene, camera, renderer } = init();
+
+    const radar = createServerPark();
+    scene.add(radar);
+
+    function render(time) {
+        if (resizeRendererToDisplaySize(renderer)) {
+            const canvas = renderer.domElement;
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+        }
+        renderer.render(scene, camera);
+        // radar.update(time);
+
+        requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+</script>

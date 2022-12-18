@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扩散效果</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+
+</body>
+
+</html>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://threejs.org/build/three.module.js",
+            "three/addons/": "https://threejs.org/examples/jsm/"
+
+        }
+    }
+</script>
+<script type="module">
+    import {
+        WebGLRenderer,
+    DirectionalLight,
+    PerspectiveCamera,
+    Scene,
+    Vector3,
+    Object3D,
+    Mesh,
+    MeshBasicMaterial,
+    RingBufferGeometry,
+    CircleBufferGeometry,
+    FrontSide,
+    CylinderGeometry,
+    BufferGeometry,
+    Color,
+    Float32BufferAttribute,
+    DoubleSide,
+    Group,
+    LineBasicMaterial,
+    Line,
+    } from 'three';
+
+
+// import {Model} from '../core/Model';
+import {computeCenter,triangulateShape} from '../utils/index.js';
+/**
+ * 圆锥扫描
+ * 摄像头扫描区域
+ *
+ * @param {*} cameraPosition
+ * @param {*} target
+ * @param {*} style
+ * @returns
+ */
+function createRoadConstrutionArea(
+    points,
+    style = {
+        color: null,
+        lineColor: ['#A56F35', '#FF782B', '#FF7928'],
+        // map: './resources/img/road-basemap.png',
+        opacity: 1.0,
+        offset: [0, 0, 1.0],
+        trafficCone: 'https://mapdata.bj.bcebos.com/model/common/trafficcone.glb'
+    }
+) {
+    if (!points || points.length < 4) {
+        return null;
+    }
+    const positions = [];
+    const linePositions = [];
+    const uvs = [];
+    const center = computeCenter(points);
+    // 摄像头扫描区域
+    const roadConstrutionArea = new Group();
+
+    for (let ii = 0; ii < points.length; ii++) {
+        const x = points[ii][0] - center[0];
+        const y = points[ii][1] - center[1];
+        positions.push(x, y, points[ii][2] || 0.1);
+        linePositions.push(x, y, points[ii][2] || 0.1);
+        const u = x / center[2] + 0.5;
+        const v = y / center[3] + 0.5;
+        uvs.push(u, v);
+
+        // 角点处加上三角锥
+        // const trafficCone = new Model({name: 'traffic_cone', modelType: 'traffic_cone', modelUrl: style.trafficCone || 'https://mapdata.bj.bcebos.com/model/common/trafficcone.glb'});
+        // trafficCone.position.x = x;
+        // trafficCone.position.y = y;
+        // roadConstrutionArea.add(trafficCone);
+    }
+    linePositions.push(positions[0], positions[1], positions[2]);
+    const indices = triangulateShape(points);
+
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('uv', new Float32BufferAttribute(uvs, 2));
+    geometry.setIndex(indices);
+
+    const lineGeometry = new BufferGeometry();
+    lineGeometry.setAttribute('position', new Float32BufferAttribute(linePositions, 3));
+
+    let map = null;
+    if (style.map) {
+        map = new TextureLoader().load(style.map);
+    }
+    const material = new MeshBasicMaterial({
+        color: style.color || '#fff',
+        opacity: style.opacity || 1.0,
+        transparent: style.opacity ? style.opacity < 1 : false,
+        map: map
+        // side: DoubleSide
+    });
+    // Create the final object to add to the scene
+
+    const mesh = new Mesh(geometry, material);
+    for (let ii = 0; ii < style.lineColor.length; ii++) {
+        const line = new Line(lineGeometry, new LineBasicMaterial({color: style.lineColor[ii]}));
+        line.position.z = 0.1 + 0.5 * ii;
+        roadConstrutionArea.add(line);
+    }
+
+    roadConstrutionArea.add(mesh);
+    const offset = style.offset || [0, 0, 0];
+    roadConstrutionArea.position.set(center[0] + offset[0], center[1] + offset[1], offset[2]);
+    return roadConstrutionArea;
+}
+
+
+
+    function init() {
+        const canvas = document.querySelector('#c');
+        const renderer = new WebGLRenderer({ canvas });
+        renderer.autoClearColor = true;
+
+        const fov = 75;
+        const aspect = 2;  // the canvas default
+        const near = 0.1;
+        const far = 50;
+        const camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.z = 20;
+
+        const scene = new Scene();
+        const color = 0xFFFFFF;
+        const intensity = 1;
+        const light = new DirectionalLight(color, intensity);
+        light.position.set(-1, 2, 4);
+        scene.add(light);
+        return {
+            scene, camera, renderer
+        }
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+            renderer.setSize(width, height, false);
+        }
+        return needResize;
+    }
+
+    const { scene, camera, renderer } = init();
+    const style = {
+        color: null,
+        lineColor: ['#A56F35', '#FF782B', '#FF7928'],
+        // map: './img/china.webp',
+        opacity: 1.0,
+        offset: [0, 0, 1.0],
+        // trafficCone: url
+    }
+    const radar = createRoadConstrutionArea([[-10, 10], [10, 10], [10, -10], [-10, -10]], style);
+    radar.rotation.x = -Math.PI/4;
+    scene.add(radar);
+
+    function render(time) {
+        if (resizeRendererToDisplaySize(renderer)) {
+            const canvas = renderer.domElement;
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+        }
+        renderer.render(scene, camera);
+        // radar.update(time);
+
+        requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+</script>

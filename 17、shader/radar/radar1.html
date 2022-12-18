@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雷达特效</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+
+</body>
+
+</html>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://threejs.org/build/three.module.js",
+            "three/addons/": "https://threejs.org/examples/jsm/"
+
+        }
+    }
+</script>
+<script type="module">
+    import { Mesh, FrontSide, Color, PlaneBufferGeometry, RawShaderMaterial,WebGLRenderer,DirectionalLight,
+        PerspectiveCamera,FogExp2,
+        Scene
+     } from 'three';
+
+    const vertexShader = `
+    precision mediump float;
+    precision mediump int;
+
+    uniform mat4 modelViewMatrix; // optional
+    uniform mat4 projectionMatrix; // optional
+
+    attribute vec3 position;
+     // 传值用的
+    varying vec3 vPosition;
+
+    void main() {
+
+        vPosition = position;
+
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+    }
+`;
+    const fragmentShader = `
+
+    precision mediump float;
+    precision mediump int;
+
+    uniform float startAng;
+    uniform float endAng;
+    uniform vec3 color;
+    varying vec3 vPosition;
+    uniform float radius;
+
+    #define  PI  3.1415926
+
+    // 计算顶点与正北方向的夹角
+    float calcAngle(vec3 vPosition){
+        // 归一化
+        vec2 nV = normalize(vPosition.xy);
+        // 顶点与正北方向的夹角
+        float angle = 0.0;
+        // GLSL中的atan() 除了不能处理x = 0
+        // 根据条件设置角度 x轴正向 90度
+        if(nV.x>0.0 &&abs(nV.y)<0.01){
+            angle = 0.5*PI;
+        // x轴反向 负90度
+        }else if(nV.x<0.0 &&abs(nV.y)<0.01){
+            angle = -0.5*PI;
+        }else{
+            // 其他时候 计算(x,y)与y轴的角度 值在[-PI,PI]之间
+            // 跟Math.atan2(x,y);一样
+            angle = atan(nV.x,nV.y);
+        }
+        return angle;
+    }
+
+    void main( ) {
+        bool crossNPI = false;
+        // 角度差
+        float wholeAng = endAng - startAng;
+        // 计算距离
+        float dis = length(vec2(vPosition.xy-vec2(0.0)));
+        //判断角度差 判断 endAng是否小于 0
+        if(wholeAng < -1.0*PI){
+            crossNPI = true;
+            wholeAng = 2.0*PI + endAng-startAng;
+        }
+        // 小于某个半径的片元被舍弃
+        if(dis<radius){
+            float angle = calcAngle(vPosition);
+            float alpha = 0.1;
+            // // 保证只渲染 endAng和startAng之间夹角的区域
+            if(crossNPI){
+                // 判断是否是 endAng在 小于0的情况下
+                if(angle>startAng || angle<endAng){
+                    if(angle>0.0){
+                        alpha = 1.1 - (2.0*PI+endAng-angle)/wholeAng;
+                    }else{
+                        alpha = 1.1 - (endAng-angle)/wholeAng;
+                    }
+                }
+            }else{
+                if(angle>startAng && angle<endAng){
+                    alpha = 1.1 - (endAng-angle)/wholeAng;
+                }
+            }
+            gl_FragColor = vec4(color,alpha);
+        }else{
+            discard;
+        }
+    }
+  `;
+
+    /**
+     * 返回自定义的特效纹理，类似雷达图
+     * @param {Object} [args] 传参
+     * @param {Object} args.color 颜色
+     * @param {number} args.startAng 雷达扫面的起始角，默认值0.0，弧度制
+     * @param {number} args.endAng 雷达扫面的終角，默认值0.5 * PI，弧度制，取值范围0-PI
+     * @param {number} args.radius 圆环的半径，默认值10.0
+     * @param {number} args.speed 旋转的速度，默认值1.0，取值范围1-10
+     * @returns {Object} 几何体 @instance THREE.Mesh
+     */
+    function createRadarCircle(args) {
+        const color = args.color || new Color('rgb(242, 202, 126)');
+        const startAng = args.startAng || 0.0; // 弧度
+        const endAng = args.endAng || 0.5 * Math.PI; // 弧度
+        const radius = args.radius || 10.0;
+        const speed = args.speed || 1; // 1-10
+        const geometry = new PlaneBufferGeometry(2.0 * radius, 2.0 * radius, 1, 1);
+        const material = new RawShaderMaterial({
+            uniforms: {
+                color: {
+                    value: new Color('rgb(242, 202, 126)')
+                },
+                startAng: {
+                    value: startAng
+                },
+                endAng: {
+                    value: endAng
+                },
+                radius: {
+                    value: radius
+                }
+            },
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader,
+            side: FrontSide,
+            transparent: true
+        });
+
+        let mesh = new Mesh(geometry, material);
+        mesh.flag = 1;
+        mesh.update = function () {
+            this.material.uniforms.startAng.value += 0.01;
+            this.material.uniforms.endAng.value += 0.01;
+            // 因为glsl.atan() 计算的夹角在 -Math.PI和Math.PI之间
+            if (this.material.uniforms.startAng.value > Math.PI) {
+                this.material.uniforms.startAng.value = - Math.PI;
+            }
+            if (this.material.uniforms.endAng.value > Math.PI) {
+                this.material.uniforms.endAng.value = - Math.PI;
+            }
+            const startAng = this.material.uniforms.startAng.value;
+            const endAng = this.material.uniforms.endAng.value;
+            console.log('startAng',startAng,'endAng',endAng,'angle',endAng-startAng);
+        };
+        return mesh;
+    }
+    function init(){
+        const canvas = document.querySelector('#c');
+        const renderer = new WebGLRenderer({ canvas });
+        renderer.autoClearColor = true;
+
+        const fov = 75;
+        const aspect = 2;  // the canvas default
+        const near = 0.1;
+        const far = 50;
+        const camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.z = 20;
+
+        const scene = new Scene();
+        const color = 0xFFFFFF;
+        const intensity = 1;
+        const light = new DirectionalLight(color, intensity);
+        light.position.set(-1, 2, 4);
+        scene.add(light);
+        return {
+            scene,camera,renderer 
+        }
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+            renderer.setSize(width, height, false);
+        }
+        return needResize;
+    }
+
+    const { scene,camera,renderer } = init();
+
+    const radar = createRadarCircle({});
+    scene.add(radar);
+
+    function render(time) {
+        time *= 0.001;
+
+        if (resizeRendererToDisplaySize(renderer)) {
+            const canvas = renderer.domElement;
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+        }
+
+
+        renderer.render(scene, camera);
+        radar.update();
+
+        requestAnimationFrame(render);
+    }
+
+
+
+    requestAnimationFrame(render);
+
+
+
+
+</script>

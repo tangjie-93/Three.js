@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扩散效果</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+
+</body>
+
+</html>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://threejs.org/build/three.module.js",
+            "three/addons/": "https://threejs.org/examples/jsm/"
+
+        }
+    }
+</script>
+<script type="module">
+    import {
+        Mesh, FrontSide, Color, PlaneBufferGeometry, RawShaderMaterial, WebGLRenderer, DirectionalLight,
+        PerspectiveCamera, FogExp2, AdditiveBlending, SphereGeometry, MeshBasicMaterial, TextureLoader,
+        Scene,
+        ShaderMaterial
+    } from 'three';
+
+    const vertexShader = `
+        precision mediump float;
+        precision mediump int;
+        uniform float time;
+        varying vec2 vUv;
+        // fract() returns the fractional part of x. This is calculated as x - floor(x)
+        // fract(x)返回x的小数部分
+        // 这样就可以实现从小到大的扩散效果
+        //position * abs(sin(fract(time)))
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position * abs(sin(fract(time))), 1.0 ) ;
+
+        }
+    `;
+    const fragmentShader = `
+        precision mediump float;
+        precision mediump int;
+
+        uniform vec3 color;
+        uniform float time;
+        uniform float opacity;
+        // uniform sampler2D map;
+        varying vec2 vUv;
+        void main( ) {
+
+            // float opacity = 1.0 - abs(sin(time));
+            vec4 diffuseColor = vec4(color, opacity);
+            
+            gl_FragColor = diffuseColor;
+        
+        }
+    `;
+
+    /**
+     * 返回自定义的特效纹理，类似标靶
+     * @param {Object} [args] 传参
+     * @param {Object} args.color 中心点的颜色，默认值rgb(242, 202, 126)
+     * @param {Object} args.colorRing 外环颜色，默认值 new THREE.Color(1.0, 0, 0)
+     * @param {number} args.radius1 内心的半径，默认值10.0
+     * @param {number} args.radius2 外环的半径，默认值20.0
+     * @param {number} args.width 外环的宽度，默认值4.0
+     * @param {number} args.speed 旋转的速度，默认值1.0，取值范围1-10
+     * @returns {Object} 几何体 @instance THREE.Mesh
+     */
+    export default function createPopSphere(args = {}) {
+        const color = args.color || new Color('rgb(242, 202, 126)');
+        const radius = args.radius || 10.0;
+        const geometry = new SphereGeometry(radius, 64, 64);
+        // const texture = new TextureLoader().load('./resources/img/sprite.png');
+        // const material = new MeshBasicMaterial({map: texture});
+        const material = new ShaderMaterial({
+            uniforms: {
+                color: { value: color },
+                time: { value: 1 },
+                opacity:{value: 1},
+                // map: { value: texture }
+            },
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader,
+            side: FrontSide,
+            // map: texture,
+            transparent: true,
+            blending: AdditiveBlending
+        });
+
+        const mesh = new Mesh(geometry, material);
+        mesh.update = function (time) {
+            this.material.uniforms.time.value = time * 0.0005;
+            this.material.uniforms.opacity.value = 1.0 - Math.abs(Math.sin(time * 0.0005));
+            console.log('opacity',this.material.uniforms.opacity.value);
+        };
+        return mesh;
+    }
+
+    function init() {
+        const canvas = document.querySelector('#c');
+        const renderer = new WebGLRenderer({ canvas });
+        renderer.autoClearColor = true;
+
+        const fov = 75;
+        const aspect = 2;  // the canvas default
+        const near = 0.1;
+        const far = 50;
+        const camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.z = 20;
+
+        const scene = new Scene();
+        const color = 0xFFFFFF;
+        const intensity = 1;
+        const light = new DirectionalLight(color, intensity);
+        light.position.set(-1, 2, 4);
+        scene.add(light);
+        return {
+            scene, camera, renderer
+        }
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+            renderer.setSize(width, height, false);
+        }
+        return needResize;
+    }
+
+    const { scene, camera, renderer } = init();
+
+    const radar = createPopSphere({});
+    scene.add(radar);
+
+    function render(time) {
+        if (resizeRendererToDisplaySize(renderer)) {
+            const canvas = renderer.domElement;
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+        }
+        renderer.render(scene, camera);
+        radar.update(time);
+
+        requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+</script>

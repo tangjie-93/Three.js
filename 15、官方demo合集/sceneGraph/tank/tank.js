@@ -42,6 +42,10 @@ export class Tank extends Object3D {
     }
     initScene() {
         this.scene = new Scene();
+        const axes = new AxesHelper(10);
+        axes.material.depthTest = false;
+        axes.renderOrder = 2; // 在网格渲染之后再渲染
+        this.scene.add(axes);
     }
     addLight() {
         const light = new DirectionalLight(0xffffff, 1);
@@ -252,6 +256,7 @@ export class Tank extends Object3D {
         const targetCameraPivot = new Object3D();
         targetCamera.position.y = 1;
         targetCamera.position.z = -2;
+        console.log('targetCamera',targetCamera);
 
         // 相机绕y轴旋状180度
         targetCamera.rotation.y = Math.PI;
@@ -285,6 +290,7 @@ export class Tank extends Object3D {
         splineObject.rotation.x = Math.PI * .5;
         splineObject.position.y = 0.05;
         this.scene.add(splineObject);
+        this.splineObject = splineObject;
         this.curve = curve;
     }
 
@@ -311,6 +317,7 @@ export class Tank extends Object3D {
                 camera.updateProjectionMatrix();
             });
         }
+        // this.control.update();
 
         this.moveTarget(time);
         this.moveTank(time);
@@ -320,7 +327,7 @@ export class Tank extends Object3D {
         requestAnimationFrame(this.render.bind(this));
     }
     addControl() {
-        new OrbitControls(this.camera, this.renderer.domElement);
+      this.control=  new OrbitControls(this.camera, this.renderer.domElement);
     }
 
     lookAtTarget() {
@@ -337,6 +344,7 @@ export class Tank extends Object3D {
         this.turretCamera.lookAt(targetPosition);
 
         // make the targetCameraPivot look at the at the tank
+        // 获取坦克在世界坐标系中的位置
         this.tank.getWorldPosition(targetPosition);
         // 目标球体相机看向坦克
         this.targetCameraPivot.lookAt(targetPosition);
@@ -360,8 +368,9 @@ export class Tank extends Object3D {
         //0.0 是曲线的起始点，1.0 是曲线的终点，所以对1求余
         this.curve.getPointAt(tankTime % 1, tankPosition);
         this.curve.getPointAt((tankTime + 0.01) % 1, tankTarget);
-        // 设置坦克的位置
+        // 设置坦克的位置 因为线已经绕x轴旋状90度了，所以现在的y轴坐标就是z轴坐标
         this.tank.position.set(tankPosition.x, 0, tankPosition.y);
+        
         // 设置坦克看向的位置，设置坦克的前进方向
         this.tank.lookAt(tankTarget.x, 0, tankTarget.y);
     }

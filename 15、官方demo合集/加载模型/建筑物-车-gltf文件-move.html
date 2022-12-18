@@ -287,6 +287,7 @@
             const p0 = new THREE.Vector3();
             const p1 = new THREE.Vector3();
             const  curve = new THREE.CatmullRomCurve3(
+                
                 controlPoints.map((p, ndx) => {
                     p0.set(...p);
                     p1.set(...controlPoints[(ndx + 1) % controlPoints.length]);
@@ -341,22 +342,19 @@
                     // 利用场景 局部空间
                     const obj = new THREE.Object3D();
                     //将坐标归零 重新定位它
-                    // car.position.set(0, fix.y, 0);
+                    car.position.set(0, fix.y, 0);
                     // if(car.name.startsWith('Car_08')){
                     //     console.log('before',JSON.stringify(car.rotation))
                     // }
                     //需要知道最初始的rotation，将位置设置为z轴正方向 修正朝向
                     car.rotation.set(...fix.rot);
-                    // if(car.name.startsWith('Car_08')){
-                    //     console.log('after',JSON.stringify(car.rotation))
-                    // }
                     const axesHelper = new THREE.AxesHelper( 100 );
                     axesHelper.material.depthTest = false;
                     axesHelper.renderOrder= 1;
                     car.add( axesHelper );
                     obj.add(car);
-                    scene.add(car);
-                    cars.push(car);
+                    scene.add(obj);
+                    cars.push(obj);
                 }
 
                 const axesHelper = new THREE.AxesHelper( 300 );
@@ -429,24 +427,21 @@
                 const targetOffset = 0.01;
                 // 更新car父级模型的位置
                 cars.forEach((car, ndx) => {
-                    const fix = fixes.find(fix => car.name.startsWith(fix.prefix));
+                    // const fix = fixes.find(fix => car.name.startsWith(fix.prefix));
                     // a number between 0 and 1 to evenly space the cars
                     const u = pathTime + ndx / cars.length;
 
                     // get the first point
                     curve.getPointAt(u % 1, carPosition);
-                    const rot= new THREE.Vector3(...fix.rot);
-                    rot.applyMatrix4(curveObject.matrixWorld);
                     carPosition.applyMatrix4(curveObject.matrixWorld);
-                    carPosition = carPosition.add(new THREE.Vector3(0,fix.y,0));
 
                     // get a second point slightly further down the curve
                     curve.getPointAt((u + targetOffset) % 1, carTarget);
+                    
                     carTarget.applyMatrix4(curveObject.matrixWorld);
 
                     // put the car at the first point (temporarily)
                     car.position.copy(carPosition);
-                    car.rotation.copy(rot.x,rot.y,rot.z);
 
                     // point the car the second point
                     car.lookAt(carTarget);

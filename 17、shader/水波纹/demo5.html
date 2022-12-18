@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扩散效果</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+
+</body>
+
+</html>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://threejs.org/build/three.module.js",
+            "three/addons/": "https://threejs.org/examples/jsm/"
+
+        }
+    }
+</script>
+<script type="module">
+    import {
+        Mesh, FrontSide, Color, PlaneBufferGeometry, RawShaderMaterial, WebGLRenderer, DirectionalLight,
+        PerspectiveCamera, FogExp2, AdditiveBlending, SphereGeometry, MeshBasicMaterial, TextureLoader,
+        Scene,CylinderBufferGeometry,DoubleSide,TorusGeometry,Group,
+        ShaderMaterial
+    } from 'three';
+
+    function createWaveCircle5(args) {
+    const color = args.color || new Color();
+    const radius = args.radius || 10.0;
+    const height = args.height || 1; // 1-10
+    const totalHeight = args.totalHeight || 10; // 1-100
+    const speed = args.speed || 1; // 1-50
+    const opacity = args.opacity || 1; // 1-50
+    const geometry = new TorusGeometry(radius, height, 8, 64);
+    const material = new MeshBasicMaterial({color: color, opacity: opacity, transparent: true});
+    // const mesh = new Mesh(geometry, material);
+    const object = new Group();
+    object.add(new Mesh(geometry, material.clone()));
+    object.add(new Mesh(geometry, material.clone()));
+    object.add(new Mesh(geometry, material.clone()));
+    // object.add(mesh.clone());
+    object.children[1].position.z = -totalHeight * 0.334;
+    object.children[2].position.z = -totalHeight * 0.667;
+    object.rotateX(Math.PI * 0.6);
+    // object.children[3].position.z = -totalHeight * 0.999;
+    object.update = function () {
+        for (let i = 0; i < 3; i++) {
+            this.children[i].position.z += 0.1 * speed;
+            this.children[i].material.opacity = 1 - this.children[i].position.z / totalHeight;
+            if (this.children[i].position.z > totalHeight) {
+                this.children[i].position.z = 0.0;
+            }
+        }
+    };
+    return object;
+}
+
+function init() {
+        const canvas = document.querySelector('#c');
+        const renderer = new WebGLRenderer({ canvas,antialias:true });
+        renderer.autoClearColor = true;
+
+        const fov = 75;
+        const aspect = 2;  // the canvas default
+        const near = 0.1;
+        const far = 50;
+        const camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.z = 20;
+
+        const scene = new Scene();
+        const color = 0xFFFFFF;
+        const intensity = 1;
+        const light = new DirectionalLight(color, intensity);
+        light.position.set(-1, 2, 4);
+        scene.add(light);
+        return {
+            scene, camera, renderer
+        }
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+            renderer.setSize(width, height, false);
+        }
+        return needResize;
+    }
+
+    const { scene, camera, renderer } = init();
+
+    const radar = createWaveCircle5({});
+    scene.add(radar);
+
+    function render(time) {
+        if (resizeRendererToDisplaySize(renderer)) {
+            const canvas = renderer.domElement;
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+        }
+        renderer.render(scene, camera);
+        radar.update(time);
+
+        requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+</script>

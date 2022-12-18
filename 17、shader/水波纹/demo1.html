@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扩散效果</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+
+</body>
+
+</html>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://threejs.org/build/three.module.js",
+            "three/addons/": "https://threejs.org/examples/jsm/"
+
+        }
+    }
+</script>
+<script type="module">
+    import {
+        Mesh, FrontSide, Color, PlaneBufferGeometry, RawShaderMaterial, WebGLRenderer, DirectionalLight,
+        PerspectiveCamera, FogExp2, AdditiveBlending, SphereGeometry, MeshBasicMaterial, TextureLoader,
+        Scene,
+        ShaderMaterial
+    } from 'three';
+
+    const vertexShader = `
+    precision mediump float;
+    precision mediump int;
+
+    uniform mat4 modelViewMatrix; // optional
+    uniform mat4 projectionMatrix; // optional
+
+    attribute vec3 position;
+
+    varying vec3 vPosition;
+
+    void main() {
+
+        vPosition = position;
+
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+    }
+`;
+const fragmentShader = `
+
+    precision mediump float;
+    precision mediump int;
+
+    uniform float factor;
+    uniform vec3 color;
+    varying vec3 vPosition;
+    uniform float radius;
+
+    void main( ) {
+
+        float d = length(vec2(vPosition.xy-vec2(0.0)));
+        float r1 = abs(radius*factor);
+        float r2 = r1 + 0.5*r1;
+        float r3 = r1 + 0.75*r1;
+        if(d<=r1) {
+            gl_FragColor = vec4(color, clamp(d/radius,0.25,0.9));
+        }else if(d<=r2) {
+            gl_FragColor = vec4(color, clamp((d-r1)/radius,0.2,1.0));
+        }else if(d<=r3) {
+            gl_FragColor = vec4(color, clamp((d-r2)/radius,0.2,1.0));
+        }else{
+            gl_FragColor = vec4(color, 1.0);
+            // discard;
+        }
+
+
+
+    }
+  `;
+
+/**
+ * 返回自定义的特效纹理，类似由大到小的波及范围图
+ * @param {Object} [args] 传参
+ * @param {Object} args.color 颜色，默认值new THREE.Color(0.45, 0.45, 0.45)
+ * @param {number} args.radius 圆环的半径，默认值10.0
+ * @param {number} args.speed 旋转的速度，默认值1.0，取值范围1-20
+ * @returns {Object} 几何体 @instance THREE.Mesh
+ */
+export function createWaveCircle(args) {
+    const color = args.color || new Color(1.0,1.0,1.0);
+    const radius = args.radius || 10.0;
+    const speed = args.speed || 1.0;
+    const geometry = new PlaneBufferGeometry(radius * 2.0, radius * 2.0, 1, 1);
+    const material = new RawShaderMaterial({
+        uniforms: {
+            factor: {value: 0.0},
+            color: {
+                value: color
+            },
+            radius: {
+                value: radius * 0.5
+            }
+        },
+        vertexShader: vertexShader,
+        fragmentShader: fragmentShader,
+        side: FrontSide,
+        transparent: true
+    });
+
+    let mesh = new Mesh(geometry, material);
+    mesh.update = function () {
+        this.material.uniforms.factor.value += this.material.uniforms.factor.value > 1.0 ? -0.8 : 0.01 * speed;
+    };
+    return mesh;
+}
+
+
+function init() {
+        const canvas = document.querySelector('#c');
+        const renderer = new WebGLRenderer({ canvas,antialias:true });
+        renderer.autoClearColor = true;
+
+        const fov = 75;
+        const aspect = 2;  // the canvas default
+        const near = 0.1;
+        const far = 50;
+        const camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.z = 20;
+
+        const scene = new Scene();
+        const color = 0xFFFFFF;
+        const intensity = 1;
+        const light = new DirectionalLight(color, intensity);
+        light.position.set(-1, 2, 4);
+        scene.add(light);
+        return {
+            scene, camera, renderer
+        }
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+            renderer.setSize(width, height, false);
+        }
+        return needResize;
+    }
+
+    const { scene, camera, renderer } = init();
+
+    const radar = createWaveCircle({});
+    scene.add(radar);
+
+    function render(time) {
+        if (resizeRendererToDisplaySize(renderer)) {
+            const canvas = renderer.domElement;
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+        }
+        renderer.render(scene, camera);
+        radar.update(time);
+
+        requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+</script>

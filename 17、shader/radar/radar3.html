@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雷达特效</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+
+</body>
+
+</html>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://threejs.org/build/three.module.js",
+            "three/addons/": "https://threejs.org/examples/jsm/"
+
+        }
+    }
+</script>
+<script type="module">
+    import {
+        Mesh, FrontSide, Color, PlaneBufferGeometry, RawShaderMaterial, WebGLRenderer, DirectionalLight,
+        PerspectiveCamera, FogExp2,
+        Scene
+    } from 'three';
+
+    const vertexShader = `
+    precision mediump float;
+    precision mediump int;
+
+    uniform mat4 modelViewMatrix; // optional
+    uniform mat4 projectionMatrix; // optional
+
+    attribute vec3 position;
+    attribute vec2 uv;
+
+    varying vec2 vUV;
+
+    void main() {
+
+        vUV = uv;
+
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+    }
+`;
+    const fragmentShader = `
+
+    precision mediump float;
+    precision mediump int;
+    varying vec2 vUV;
+    uniform float uTime;
+    uniform vec3 uColor;
+
+    // returns a vec3 color from every pixel requested.
+    // Generates a BnW Ping on normalized 2d coordinate system
+    // center是中心点
+    vec3 RadarPing(in vec2 uv, in vec2 center, in float innerTail, 
+                in float frontierBorder, in float timeResetSeconds, 
+                in float radarPingSpeed, in float fadeDistance, float t)
+    {
+        vec2 diff = center-uv;
+        float r = length(diff);
+        float time = mod(t, timeResetSeconds) * radarPingSpeed;
+    
+        float circle;
+        // r is the distance to the center.
+        // circle = BipCenter---//---innerTail---time---frontierBorder
+        //illustration
+        //https://sketch.io/render/sk-14b54f90080084bad1602f81cadd4d07.jpeg
+        circle += smoothstep(time - innerTail, time, r) * smoothstep(time + frontierBorder,time, r);
+        circle *= smoothstep(fadeDistance, 0.25, r); // fade to 0 after fadeDistance
+            
+        return vec3(circle);
+    }
+
+    void main()
+    {	
+        //normalize coordinates 
+        vec2 uv = vUV; //move coordinates to 0..1
+        uv = uv.xy*2.; // translate to the center
+        uv += vec2(-1.0, -1.0);
+        
+        vec3 color;
+        // generate some radar pings
+        float fadeDistance = 0.8;
+        float resetTimeSec = 3.0;
+        float radarPingSpeed = 0.2;
+        vec2 greenPing = vec2(0.0, 0.0);
+        // 为啥uTime + 2.会多添加一个圆环
+        color += RadarPing(uv, greenPing, 0.08, 0.00025, resetTimeSec,
+            radarPingSpeed, fadeDistance, uTime) * uColor;
+        color += RadarPing(uv, greenPing, 0.08, 0.00025, resetTimeSec,
+           radarPingSpeed, fadeDistance, uTime + 1.) * uColor;
+        color += RadarPing(uv, greenPing, 0.08, 0.00025, resetTimeSec,
+            radarPingSpeed, fadeDistance, uTime + 2.) * uColor;
+        // //return the new color
+        if(length(color)<0.001){
+            discard;
+        }else{
+            gl_FragColor = vec4(color,clamp(length(color),0.5,1.0));
+        }
+        
+    }
+
+  `;
+
+    /**
+     * 返回自定义的特效纹理，类似雷达图
+     * @param {Object} [args] 传参
+     * @param {Object} args.color 颜色
+     * @param {number} args.startAng 雷达扫面的起始角，默认值0.0，弧度制
+     * @param {number} args.endAng 雷达扫面的終角，默认值0.5 * PI，弧度制，取值范围0-PI
+     * @param {number} args.radius 圆环的半径，默认值10.0
+     * @param {number} args.speed 旋转的速度，默认值1.0，取值范围1-10
+     * @returns {Object} 几何体 @instance THREE.Mesh
+     */
+    function createRadarCircle(args = {}) {
+        const color = args.color || new Color('#00b7ff');
+        const speed = args.speed || 1; // 1-10
+        const geometry = new PlaneBufferGeometry(10, 10, 1, 1);
+        const material = new RawShaderMaterial({
+            uniforms: {
+                uTime: {
+                    value: 0.01
+                },
+                uColor: {
+                    value: color
+                }
+            },
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader,
+            side: FrontSide,
+            transparent: true
+        });
+
+        let mesh = new Mesh(geometry, material);
+        mesh.update = function () {
+            this.material.uniforms.uTime.value += 0.01 * speed;
+        };
+        return mesh;
+    }
+    function init() {
+        const canvas = document.querySelector('#c');
+        const renderer = new WebGLRenderer({ canvas });
+        renderer.autoClearColor = true;
+
+        const fov = 75;
+        const aspect = 2;  // the canvas default
+        const near = 0.1;
+        const far = 50;
+        const camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.z = 20;
+
+        const scene = new Scene();
+        const color = 0xFFFFFF;
+        const intensity = 1;
+        const light = new DirectionalLight(color, intensity);
+        light.position.set(-1, 2, 4);
+        scene.add(light);
+        return {
+            scene, camera, renderer
+        }
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+            renderer.setSize(width, height, false);
+        }
+        return needResize;
+    }
+
+    const { scene, camera, renderer } = init();
+
+    const radar = createRadarCircle({});
+    scene.add(radar);
+
+    function render(time) {
+        time *= 0.001;
+
+        if (resizeRendererToDisplaySize(renderer)) {
+            const canvas = renderer.domElement;
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+        }
+
+
+        renderer.render(scene, camera);
+        radar.update();
+
+        requestAnimationFrame(render);
+    }
+
+
+
+    requestAnimationFrame(render);
+
+
+
+
+</script>

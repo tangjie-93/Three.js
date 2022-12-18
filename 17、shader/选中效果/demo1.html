@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扩散效果</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+
+</body>
+
+</html>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://threejs.org/build/three.module.js",
+            "three/addons/": "https://threejs.org/examples/jsm/"
+
+        }
+    }
+</script>
+<script type="module">
+    import {
+        Mesh, FrontSide, Color, PlaneBufferGeometry, RawShaderMaterial, WebGLRenderer, DirectionalLight,
+        PerspectiveCamera, FogExp2, AdditiveBlending, SphereGeometry, MeshBasicMaterial, TextureLoader,
+        Scene,BufferGeometry,BufferAttribute,DoubleSide,
+        ShaderMaterial
+    } from 'three';
+
+
+const vertexShader = `
+    precision mediump float;
+    precision mediump int;
+
+    uniform mat4 modelViewMatrix; // optional
+    uniform mat4 projectionMatrix; // optional
+
+    attribute vec3 position;
+
+    varying vec3 vPosition;
+
+    void main() {
+
+        vPosition = position;
+
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+    }
+`;
+const fragmentShader = `
+
+    precision mediump float;
+    precision mediump int;
+
+    uniform float width;
+    uniform float height;
+    uniform vec3 color;
+    uniform vec3 opacity;
+    varying vec3 vPosition;
+
+    void main( ) {       
+        float x = gl_FragCoord.x;
+        float y = gl_FragCoord.y;
+        if(x<width&&(y<height || y > 1-height)){
+            gl_FragColor = vec4(color, opacity);
+        }else if(x>1-width&&(y<height || y > 1-height)){
+            gl_FragColor = vec4(color, opacity);
+        }else if(y<width && (x<height || x > 1-height)){
+            gl_FragColor = vec4(color, opacity);
+        }else if(y>1-width && (x<height || x > 1-height)){
+            gl_FragColor = vec4(color, opacity);
+        }else {
+            discard;
+        }
+    }
+  `;
+
+/**
+ * 返回自定义的特效纹理，类似雷达图
+ * @param {Object} [args] 传参
+ * @param {Object} args.color 颜色
+ * @param {number} args.width 宽度，默认值1
+ * @param {number} args.height 高度，默认值1
+ * @param {number} args.lineWidth 线段的宽度，默认值0.05
+ * @param {number} args.lineLength 线段的长度，默认值0.25
+ * @param {number} args.opacity 透明度，默认值1.0
+ * @returns {Object} 几何体 @instance THREE.Mesh
+ */
+export default function createFocusRect(args) {
+    const color = args.color ? new Color(args.color) : new Color('rgb(242, 202, 126)');
+    const width = args.rectWidth || 1.2 * args.itemScale; // 宽度
+    const height = args.rectHeight || 1.2 * args.itemScale; // 高度
+    const w = args.lineWidth || 0.05; // 线段的宽度
+    const l = args.lineLength || 0.5; // 线段的长度
+    const opacity = args.opacity || 1.0; // 透明度
+    // const geometry = new PlaneBufferGeometry(1.0, 1.0, 1, 1);
+    // const material = new RawShaderMaterial({
+    //     uniforms: {
+    //         color: {
+    //             value: color
+    //         },
+    //         width: {
+    //             value: width
+    //         },
+    //         height: {
+    //             value: height
+    //         },
+    //         opacity: {
+    //             value: 1.0
+    //         }
+    //     },
+    //     vertexShader: vertexShader,
+    //     fragmentShader: fragmentShader,
+    //     side: FrontSide,
+    //     transparent: true
+    // });
+    const geometry = getBufferGeometry(width * 0.5, height * 0.5, w, l);
+    const mesh = new Mesh(
+        geometry,
+        new MeshBasicMaterial({color: color, opacity: opacity, side: DoubleSide, transparent: true})
+    );
+
+    mesh.update = function () {
+        this.material.opacity += 0.05;
+        if (this.material.opacity > 1.0) {
+            this.material.opacity = 0.1;
+        }
+        this.scale.x += 0.01;
+        this.scale.y += 0.01;
+        if (this.scale.x > 2) {
+            this.scale.x = 1;
+            this.scale.y = 1;
+        }
+    };
+    return mesh;
+}
+
+function getBufferGeometry(width, height, w, l) {
+    const positions = [];
+    const indices = [];
+
+    positions.push(-width, -height, 0);
+    positions.push(width, -height, 0);
+    positions.push(width, height, 0);
+    positions.push(-width, height, 0);
+
+    positions.push(l - width, -height, 0);
+    positions.push(width, l - height, 0);
+    positions.push(width - l, height, 0);
+    positions.push(-width, height - l, 0);
+
+    positions.push(l - width, w - height, 0);
+    positions.push(width - w, l - height, 0);
+    positions.push(width - l, height - w, 0);
+    positions.push(w - width, height - l, 0);
+
+    positions.push(w - width, w - height, 0);
+    positions.push(width - w, -height, 0);
+    positions.push(width, height - w, 0);
+    positions.push(w - width, height, 0);
+
+    positions.push(w - width, -height, 0);
+    positions.push(width, w - height, 0);
+    positions.push(width - w, height, 0);
+    positions.push(-width, height - w, 0);
+
+    positions.push(w - width, l - height, 0);
+    positions.push(width - l, w - height, 0);
+    positions.push(width - w, height - l, 0);
+    positions.push(l - width, height, 0);
+
+    positions.push(-width, l - height, 0);
+    positions.push(width - l, -height, 0);
+    positions.push(width, height - l, 0);
+    positions.push(l - width, height - w, 0);
+
+    indices.push(0, 4, 8);
+    indices.push(0, 8, 12);
+    indices.push(0, 16, 20);
+    indices.push(0, 20, 24);
+
+    indices.push(1, 5, 9);
+    indices.push(1, 9, 13);
+    indices.push(1, 17, 21);
+    indices.push(1, 21, 25);
+
+    indices.push(2, 6, 10);
+    indices.push(2, 10, 14);
+    indices.push(2, 18, 22);
+    indices.push(2, 22, 26);
+
+    indices.push(3, 7, 11);
+    indices.push(3, 11, 15);
+    indices.push(3, 19, 27);
+    indices.push(3, 27, 23);
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+    geometry.setIndex(indices);
+    return geometry;
+}
+
+    function init() {
+        const canvas = document.querySelector('#c');
+        const renderer = new WebGLRenderer({ canvas });
+        renderer.autoClearColor = true;
+
+        const fov = 75;
+        const aspect = 2;  // the canvas default
+        const near = 0.1;
+        const far = 50;
+        const camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.z = 20;
+
+        const scene = new Scene();
+        const color = 0xFFFFFF;
+        const intensity = 1;
+        const light = new DirectionalLight(color, intensity);
+        light.position.set(-1, 2, 4);
+        scene.add(light);
+        return {
+            scene, camera, renderer
+        }
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+            renderer.setSize(width, height, false);
+        }
+        return needResize;
+    }
+
+    const { scene, camera, renderer } = init();
+
+    const radar = createFocusRect({
+
+    rectWidth: 20,
+    rectHeight: 20
+
+    });
+    scene.add(radar);
+
+    function render(time) {
+        if (resizeRendererToDisplaySize(renderer)) {
+            const canvas = renderer.domElement;
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+        }
+        renderer.render(scene, camera);
+        // radar.update(time);
+
+        requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+</script>

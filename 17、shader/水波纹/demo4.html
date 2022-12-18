@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扩散效果</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+
+</body>
+
+</html>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://threejs.org/build/three.module.js",
+            "three/addons/": "https://threejs.org/examples/jsm/"
+
+        }
+    }
+</script>
+<script type="module">
+    import {
+        Mesh, FrontSide, Color, PlaneBufferGeometry, RawShaderMaterial, WebGLRenderer, DirectionalLight,
+        PerspectiveCamera, FogExp2, AdditiveBlending, SphereGeometry, MeshBasicMaterial, TextureLoader,
+        Scene,CylinderBufferGeometry,DoubleSide,
+        ShaderMaterial
+    } from 'three';
+
+    const vertexShader = `
+    precision mediump float;
+    precision mediump int;
+
+    uniform mat4 modelViewMatrix; // optional
+    uniform mat4 projectionMatrix; // optional
+
+    attribute vec3 position;
+    varying vec3 vPosition;
+
+    void main() {
+        vPosition = position.xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+    }
+`;
+const fragmentShader = `
+
+    precision mediump float;
+    precision mediump int;
+    
+    varying vec3 vPosition;
+    uniform float iTime;
+    uniform vec3 color;
+    uniform float height;
+    uniform float width;
+    void main( ) {
+        float len = vPosition.y + 0.6*height;
+        // -1.0 ~ 1.0
+        float time = fract(iTime*0.11)*3.1415926*0.5;
+        float height1 = height*0.15 + fract(len - iTime)*0.85*height;
+        if(len<height*0.15){
+            gl_FragColor = vec4(color, 1.0);
+        }else if(len>height1-width*2.0&&len<height1+width*2.0){
+            gl_FragColor = vec4(color, 0.8);
+        }else{
+            discard;
+        }
+
+    }
+  `;
+
+/**
+ * 返回自定义的特效纹理，竖向扩散效果
+ * @param {Object} [args] 传参
+ * @param {Object} args.color 颜色，默认值new THREE.Color(0.45, 0.45, 0.45)
+ * @param {number} args.radius 圆环的半径，默认值5.0
+ * @param {number} args.height 圆环的高度，默认值10.0，取值范围1-50
+ * @param {number} args.iTime 圆环的升降速度，默认值1.0
+ * @param {number} args.width 单个圆环的宽度，默认值0.2，取值范围0-2.0
+ * @returns {Object} 几何体 @instance THREE.Mesh
+ */
+function createWaveCircle4(args = {}) {
+    const color = args.color || new Color();
+    const height = args.height || 10.0;
+    const radius = args.radius || 5.0;
+    const iTime = args.iTime || 1; // 1-50
+    const width = args.width || 0.4; // 0-1
+    const geometry = new CylinderBufferGeometry(radius * 1, radius * 2.0, height, 64, 1, true);
+    const material = new RawShaderMaterial({
+        uniforms: {
+            color: {
+                value: color
+            },
+            height: {
+                value: height
+            },
+            width: {
+                value: width
+            },
+            iTime: {
+                value: iTime
+            }
+        },
+        vertexShader: vertexShader,
+        fragmentShader: fragmentShader,
+        side: DoubleSide,
+        transparent: true
+    });
+
+    let mesh = new Mesh(geometry, material);
+    mesh.rotateX(Math.PI * 0.2);
+    mesh.update = function () {
+        this.material.uniforms.iTime.value += 0.03;
+    };
+    return mesh;
+}
+function init() {
+        const canvas = document.querySelector('#c');
+        const renderer = new WebGLRenderer({ canvas,antialias:true });
+        renderer.autoClearColor = true;
+
+        const fov = 75;
+        const aspect = 2;  // the canvas default
+        const near = 0.1;
+        const far = 50;
+        const camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.z = 20;
+
+        const scene = new Scene();
+        const color = 0xFFFFFF;
+        const intensity = 1;
+        const light = new DirectionalLight(color, intensity);
+        light.position.set(-1, 2, 4);
+        scene.add(light);
+        return {
+            scene, camera, renderer
+        }
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+            renderer.setSize(width, height, false);
+        }
+        return needResize;
+    }
+
+    const { scene, camera, renderer } = init();
+
+    const radar = createWaveCircle4({});
+    scene.add(radar);
+
+    function render(time) {
+        if (resizeRendererToDisplaySize(renderer)) {
+            const canvas = renderer.domElement;
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+        }
+        renderer.render(scene, camera);
+        radar.update(time);
+
+        requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+</script>

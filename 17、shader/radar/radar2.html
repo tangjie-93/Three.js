@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雷达特效</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+
+</body>
+
+</html>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://threejs.org/build/three.module.js",
+            "three/addons/": "https://threejs.org/examples/jsm/"
+
+        }
+    }
+</script>
+<script type="module">
+    import {
+        Mesh, FrontSide, Color, PlaneBufferGeometry, RawShaderMaterial, WebGLRenderer, DirectionalLight,
+        PerspectiveCamera, FogExp2,
+        Scene
+    } from 'three';
+
+    const vertexShader = `
+    precision mediump float;
+    precision mediump int;
+
+    uniform mat4 modelViewMatrix; // optional
+    uniform mat4 projectionMatrix; // optional
+
+    attribute vec3 position;
+
+    varying vec3 vPosition;
+
+    void main() {
+
+        vPosition = position;
+
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+    }
+`;
+    const fragmentShader = `
+
+    precision mediump float;
+    precision mediump int;
+
+    //Sci-fi radar based on the work of gmunk for Oblivion
+    //http://work.gmunk.com/OBLIVION-GFX
+    
+    #define SMOOTH(r,R) (1.0-smoothstep(R-1.0,R+1.0, r))
+    #define RANGE(a,b,x) ( step(a,x)*(1.0-step(b,x)) )
+    #define RS(a,b,x) ( smoothstep(a-1.0,a+1.0,x)*(1.0-smoothstep(b-1.0,b+1.0,x)) )
+    #define M_PI 3.1415926535897932384626433832795
+    
+    #define blue1 vec3(0.74,0.95,1.00)
+    #define blue2 vec3(0.87,0.98,1.00)
+    #define blue3 vec3(0.35,0.76,0.83)
+    #define blue4 vec3(0.953,0.969,0.89)
+    #define red   vec3(1.00,0.38,0.227)
+
+    #define MOV(a,b,c,d,t) (vec2(a*cos(t)+b*cos(0.1*(t)), c*sin(t)+d*cos(0.1*(t))))
+    
+    uniform float iTime;
+    varying vec3 vPosition;
+
+    float movingLine(vec2 uv, vec2 center, float radius)
+    {
+        //angle of the line
+        float theta0 = 90.0 * iTime;
+        vec2 d = uv - center;
+        float r = sqrt( dot( d, d ) );
+        if(r<radius)
+        {
+            //compute the distance to the line theta=theta0
+            vec2 p = radius*vec2(cos(theta0*M_PI/180.0),
+                                -sin(theta0*M_PI/180.0));
+            float l = length( d - p*clamp( dot(d,p)/dot(p,p), 0.0, 1.0) );
+            d = normalize(d);
+            //compute gradient based on angle difference to theta0
+                float theta = mod(180.0*atan(d.y,d.x)/M_PI+theta0,360.0);
+            float gradient = clamp(1.0-theta/90.0,0.3,1.0);
+            return SMOOTH(l,1.0)+0.5*gradient;
+        }
+        else return 0.0;
+    }
+    
+    float circle(vec2 uv, vec2 center, float radius, float width)
+    {
+        float r = length(uv - center);
+        return SMOOTH(r-width/2.0,radius)-SMOOTH(r+width/2.0,radius);
+    }
+    
+    float circle2(vec2 uv, vec2 center, float radius, float width, float opening)
+    {
+        vec2 d = uv - center;
+        float r = sqrt( dot( d, d ) );
+        d = normalize(d);
+        if( abs(d.y) > opening )
+            return SMOOTH(r-width/2.0,radius)-SMOOTH(r+width/2.0,radius);
+        else
+            return 0.0;
+    }
+    float circle3(vec2 uv, vec2 center, float radius, float width)
+    {
+        vec2 d = uv - center;
+        float r = sqrt( dot( d, d ) );
+        d = normalize(d);
+        float theta = 180.0*(atan(d.y,d.x)/M_PI);
+        return smoothstep(2.0, 2.1, abs(mod(theta+2.0,45.0)-2.0)) *
+            mix( 0.5, 1.0, step(45.0, abs(mod(theta, 180.0)-90.0)) ) *
+            (SMOOTH(r-width/2.0,radius)-SMOOTH(r+width/2.0,radius));
+    }
+    
+    float triangles(vec2 uv, vec2 center, float radius)
+    {
+        vec2 d = uv - center;
+        return RS(-8.0, 0.0, d.x-radius) * (1.0-smoothstep( 7.0+d.x-radius,9.0+d.x-radius, abs(d.y)))
+             + RS( 0.0, 8.0, d.x+radius) * (1.0-smoothstep( 7.0-d.x-radius,9.0-d.x-radius, abs(d.y)))
+             + RS(-8.0, 0.0, d.y-radius) * (1.0-smoothstep( 7.0+d.y-radius,9.0+d.y-radius, abs(d.x)))
+             + RS( 0.0, 8.0, d.y+radius) * (1.0-smoothstep( 7.0-d.y-radius,9.0-d.y-radius, abs(d.x)));
+    }
+    
+    float _cross(vec2 uv, vec2 center, float radius)
+    {
+        vec2 d = uv - center;
+        int x = int(d.x);
+        int y = int(d.y);
+        float r = sqrt( dot( d, d ) );
+        if( (r<radius) && ( (x==y) || (x==-y) ) )
+            return 1.0;
+        else return 0.0;
+    }
+    float dots(vec2 uv, vec2 center, float radius)
+    {
+        vec2 d = uv - center;
+        float r = sqrt( dot( d, d ) );
+        if( r <= 2.5 )
+            return 1.0;
+        if( ( r<= radius) && ( (abs(d.y+0.5)<=1.0) && ( mod(d.x+1.0, 50.0) < 2.0 ) ) )
+            return 1.0;
+        else if ( (abs(d.y+0.5)<=1.0) && ( r >= 50.0 ) && ( r < 115.0 ) )
+            return 0.5;
+        else
+            return 0.0;
+    }
+    float bip1(vec2 uv, vec2 center)
+    {
+        return SMOOTH(length(uv - center),3.0);
+    }
+    float bip2(vec2 uv, vec2 center)
+    {
+        float r = length(uv - center);
+        float R = 8.0+mod(87.0*iTime, 80.0);
+        return (0.5-0.5*cos(30.0*iTime)) * SMOOTH(r,5.0)
+            + SMOOTH(6.0,r)-SMOOTH(8.0,r)
+            + smoothstep(max(8.0,R-20.0),R,r)-SMOOTH(R,r);
+    }
+    void main()
+    {
+        vec3 finalColor;
+        vec2 uv = vPosition.xy;
+        //center of the image
+        vec2 c = vec2(0.0, 0.0);
+        finalColor = vec3( 0.3*_cross( vPosition.xy, c, 240.0) );
+        finalColor += ( circle(uv, c, 100.0, 1.0)
+                      + circle(uv, c, 165.0, 1.0) ) * blue1;
+        finalColor += (circle(uv, c, 240.0, 2.0) );//+ dots(uv,c,240.0)) * blue4;
+        finalColor += circle3(uv, c, 313.0, 4.0) * blue1;
+        finalColor += triangles(uv, c, 315.0 + 30.0*sin(iTime)) * blue2;
+        finalColor += movingLine(uv, c, 240.0) * blue3;
+        finalColor += circle(uv, c, 10.0, 1.0) * blue3;
+        finalColor += 0.7 * circle2(uv, c, 262.0, 1.0, 0.5+0.2*cos(iTime)) * blue3;
+        if( length(uv-c) < 240.0 )
+        {
+            if(length(finalColor)<0.2){
+                discard;
+            }else{
+                gl_FragColor = vec4( finalColor, 1.0 );
+            }
+            
+        }else{
+            discard;
+        }
+    
+        
+    }
+  `;
+
+    /**
+     * 返回自定义的特效纹理，类似雷达图
+     * @param {Object} [args] 传参
+     * @param {Object} args.color 颜色
+     * @param {number} args.startAng 雷达扫面的起始角，默认值0.0，弧度制
+     * @param {number} args.endAng 雷达扫面的終角，默认值0.5 * PI，弧度制，取值范围0-PI
+     * @param {number} args.radius 圆环的半径，默认值10.0
+     * @param {number} args.speed 旋转的速度，默认值1.0，取值范围1-10
+     * @returns {Object} 几何体 @instance THREE.Mesh
+     */
+    function createRadarCircle(args = {}) {
+        const color = args.color || new Color('rgb(242, 202, 126)');
+        const startAng = args.startAng || 0.0; // 弧度
+        const endAng = args.endAng || 0.5 * Math.PI; // 弧度
+        const radius = args.radius || 10.0;
+        const speed = args.speed || 1; // 1-10
+        const geometry = new PlaneBufferGeometry(720, 720, 1, 1);
+        const material = new RawShaderMaterial({
+            uniforms: {
+                iTime: {
+                    value: 0.01
+                },
+                radius: {
+                    value: radius
+                }
+            },
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader,
+            side: FrontSide,
+            transparent: true
+        });
+
+        let mesh = new Mesh(geometry, material);
+        mesh.update = function () {
+            this.material.uniforms.iTime.value += 0.01;
+        };
+        return mesh;
+    }
+    function init() {
+        const canvas = document.querySelector('#c');
+        const renderer = new WebGLRenderer({ canvas });
+        renderer.autoClearColor = true;
+
+        const fov = 75;
+        const aspect = 2;  // the canvas default
+        const near = 0.1;
+        const far = 50;
+        const camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.z = 20;
+
+        const scene = new Scene();
+        const color = 0xFFFFFF;
+        const intensity = 1;
+        const light = new DirectionalLight(color, intensity);
+        light.position.set(-1, 2, 4);
+        scene.add(light);
+        return {
+            scene, camera, renderer
+        }
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+            renderer.setSize(width, height, false);
+        }
+        return needResize;
+    }
+
+    const { scene, camera, renderer } = init();
+
+    const radar = createRadarCircle({});
+    scene.add(radar);
+
+    function render() {
+        if (resizeRendererToDisplaySize(renderer)) {
+            const canvas = renderer.domElement;
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+        }
+        renderer.render(scene, camera);
+        radar.update();
+        requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+</script>

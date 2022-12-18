@@ -43,8 +43,6 @@ var axis = new THREE.Vector3(0,1,0);//向量axis
 mesh.rotateOnAxis(axis,Math.PI/8);//绕axis轴旋转π/8
 ```
 
-
-
 ## 4、BufferGeometry简介
 将数据放到连续的内存空间中，可以有效较少向 `GPU`传输顶点位置，面片索引、法相量、颜色值、UV 坐标和自定义缓存等数据所需的开销。
 

@@ -340,8 +340,8 @@
                     const fix = fixes.find(fix => car.name.startsWith(fix.prefix));
                     // const obj = new THREE.Object3D();
                     // car.position.set(0, 0, 0);
-                    // car.rotation.set(...fix.rot);
-                    car.rotation.set(0,0,0);
+                    car.rotation.set(...fix.rot);
+                    // car.rotation.set(0,0,0);
                     const axesHelper = new THREE.AxesHelper( 100 );
                     axesHelper.material.depthTest = false;
                     axesHelper.renderOrder= 1;
