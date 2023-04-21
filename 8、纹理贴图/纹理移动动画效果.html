@@ -42,7 +42,7 @@
         texture.wrapT = THREE.RepeatWrapping
         // 设置x方向的偏移(沿着管道路径方向)，y方向默认1
         //等价texture.repeat= new THREE.Vector2(20,1)
-        texture.repeat.x = 20;
+        // texture.repeat.x = 20;
         var tubeMaterial = new THREE.MeshPhongMaterial({
             map: texture,
             transparent: true,
@@ -85,7 +85,8 @@
             renderer.render(scene, camera); //执行渲染操作
             requestAnimationFrame(render);
             // 设置纹理偏移
-            texture.offset.x -= 0.01
+            texture.offset.x -= 0.01;
+            console.log('offset',texture.offset);
         }
         render();
 
