@@ -1,6 +1,6 @@
 ## 1、常见光源类型
 
-<embed src="http://www.yanhuangxueyuan.com/upload/threejs32%E5%85%89%E6%BA%90.svg">
+<img src='../img/threejs32光源.svg'>
 
 ### 1、环境光
 环境光是没有特定方向的光源，主要是均匀整体改变Threejs物体表面的明暗效果

@@ -1,10 +1,11 @@
 ## 1、模型介绍
 模型都是由几何体 `Geometry`和材质`Material`构成。
-<embed src="http://www.yanhuangxueyuan.com/upload/threejs28%E7%82%B9%E7%BA%BF%E9%9D%A2%E6%A8%A1%E5%9E%8B.svg" >
+<img src='../img/threejs28点线面模型.svg'>
 
 ## 2、模型对象旋转平移缩放变换
 点模型 `Points`、线模型 `Line`、网格网格模型 `Mesh` 等模型对象的基类都是 `Object3D`。
-<embed src="http://www.yanhuangxueyuan.com/upload/threejs29Object3D.svg" >
+
+<img src='../img/threejs29Object3D.svg'>
 
 ### 1、缩放
 执行`.translateX()`、`.translateY()`、.`translateOnAxis()` 等方法本质上改变的都是模型的位置属性.position。

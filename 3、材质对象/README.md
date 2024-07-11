@@ -1,5 +1,6 @@
 ## 1、常用材质介绍
-<embed src="http://www.yanhuangxueyuan.com/upload/threejs25%E6%9D%90%E8%B4%A8Material.svg">
+
+<img src='../img/threejs25材质Material.svg'>
 
 ### 1、点材质
 ```js
